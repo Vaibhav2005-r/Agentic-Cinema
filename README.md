@@ -240,7 +240,29 @@ slo-watchdog chaos drm_slow_burn
 | `transcode_spike` | `transcode-worker` | 12× | A batch that fails and recovers; the agent must stay quiet |
 | `render_farm_burn` | `render-farm` | 2.9× | Frames failing quietly, burning artist days |
 
-### 4. Run
+### 4. Define the SLOs
+
+The contrast between services with an objective and services without one is the
+whole point, so four of the eleven get real SLOs:
+
+```bash
+python scripts/create_slos.py          # create
+python scripts/create_slos.py --list   # inspect
+python scripts/create_slos.py --delete # remove only the ones it created
+```
+
+There is no MCP tool for Grafana SLO, so this uses the plugin's REST API. It is
+setup, not part of the sweep — the agent reads the resulting recording rules
+back through `query_prometheus` like any other metric. Playback, DRM, CDN and
+manifests get objectives; subtitles, transcode and the render farm stay bare,
+because those are exactly the surfaces nobody writes an SLO for.
+
+No alerting is attached to them on purpose: the objectives exist and nothing
+pages on them, which is the situation the watchdog was built to find. Budget
+roughly 50 active series for the four — each SLO compiles to 10–12 recording
+rules.
+
+### 5. Run
 
 ```bash
 slo-watchdog discover                  # what exists, what has an SLO
