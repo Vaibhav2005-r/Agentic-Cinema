@@ -153,3 +153,87 @@ def test_agent_json_survives_a_code_fence(text):
 
 def test_unparseable_agent_output_is_not_a_crash():
     assert _parse_agent_json("I could not determine a cause.") is None
+
+
+# --- MCP argument contract -------------------------------------------------
+#
+# These shapes are transcribed from mcp-grafana's Go structs. They are the
+# thing the graded requirement actually rests on: a wrong key here means every
+# call fails at runtime, and no amount of offline testing would notice.
+
+
+def test_instant_query_sends_the_required_end_time():
+    """`endTime` is required on query_prometheus even for an instant query.
+
+    Omitting it fails every call the detection engine makes.
+    """
+    from slo_watchdog import tools
+
+    args = tools.instant_query("prom-1", "up")
+    assert args["endTime"] == "now"
+    assert args["queryType"] == "instant"
+    assert args["datasourceUid"] == "prom-1"
+    assert args["expr"] == "up"
+
+
+def test_range_query_sends_start_and_step():
+    from slo_watchdog import tools
+
+    args = tools.range_query("prom-1", "up", start="now-1h")
+    assert {"startTime", "endTime", "stepSeconds"} <= set(args)
+    assert args["queryType"] == "range"
+
+
+def test_label_matches_are_selector_objects_not_strings():
+    """`matches` is []Selector; a bare metric name is silently not a selector."""
+    from slo_watchdog import tools
+
+    args = tools.label_values("prom-1", "service_name", "http_server_request_duration_seconds_count")
+    assert args["matches"] == [
+        {"filters": [{"name": "__name__",
+                      "value": "http_server_request_duration_seconds_count",
+                      "type": "="}]}
+    ]
+
+
+def test_label_values_omits_matches_when_no_metric_given():
+    from slo_watchdog import tools
+
+    assert "matches" not in tools.label_values("prom-1", "service_name")
+
+
+def test_metric_names_always_sends_a_limit():
+    """The server default is 10, which silently truncates discovery."""
+    from slo_watchdog import tools
+
+    assert tools.metric_names("prom-1")["limit"] == 5000
+
+
+def test_loki_uses_logql_not_expr():
+    from slo_watchdog import tools
+
+    args = tools.loki_query("loki-1", '{app="x"}', start="now-3d")
+    assert "logql" in args and "expr" not in args
+    assert {"startRfc3339", "endRfc3339"} <= set(args)
+
+
+def test_annotation_spans_a_region_not_a_point():
+    """time + timeEnd is what puts the marker across the anomaly window."""
+    from slo_watchdog import tools
+
+    args = tools.annotation("dash-1", "burning", start_ms=1000, end_ms=2000)
+    assert args["time"] == 1000 and args["timeEnd"] == 2000
+    assert args["tags"] == ["slo-watchdog"]
+
+
+def test_incident_sends_every_required_field():
+    from slo_watchdog import tools
+
+    args = tools.incident("[SLO watchdog] paymentservice")
+    assert {"title", "severity", "status", "roomPrefix", "isDrill"} <= set(args)
+
+
+def test_deeplink_names_its_resource_type():
+    from slo_watchdog import tools
+
+    assert tools.deeplink_dashboard("dash-1")["resourceType"] == "dashboard"

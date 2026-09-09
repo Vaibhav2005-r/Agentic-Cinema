@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Generate fixtures/golden-sweep.json -- a recorded sweep that runs offline.
 
-Record a golden run once and the demo video never depends on live chaos
-cooperating, the tests never need a network, and a judge can clone the repo and
-see a real sweep without a Grafana account:
+Record a golden run once and the demo never depends on live chaos cooperating,
+the tests never need a network, and a judge can clone the repo and see a real
+sweep without a Grafana account:
 
     slo-watchdog sweep --replay fixtures/golden-sweep.json
 
-This models the OpenTelemetry demo's service list: eleven services, SLOs
-defined on four of them, and three deliberate outcomes -- one slow burn, one
-provisional finding, and one red herring the agent must stay quiet about.
+This models the mediastack simulator: eleven services across playback, DRM,
+CDN, post-production and VFX, with SLOs defined on four of them and three
+deliberate outcomes -- one slow burn, one provisional finding, and one red
+herring the agent must stay quiet about.
 """
 
 from __future__ import annotations
@@ -27,55 +28,63 @@ from slo_watchdog.discovery import discover  # noqa: E402
 from slo_watchdog.mcp_client import FixtureRecorder  # noqa: E402
 
 OUT = Path(__file__).resolve().parents[1] / "fixtures" / "golden-sweep.json"
-
 SLO = 0.999
 
-#: service -> (burn rate by window, request volume)
 HEALTHY = {"default": 0.08, "windows": {}}
 
+#: service -> (metric family, burn profile, volume)
 SERVICES: dict[str, dict] = {
-    "frontend": {**HEALTHY, "count": 2_400_000},
-    "checkoutservice": {**HEALTHY, "count": 310_000},
-    "productcatalogservice": {**HEALTHY, "count": 1_900_000},
-    "shippingservice": {**HEALTHY, "count": 290_000},
-    "currencyservice": {**HEALTHY, "count": 1_100_000},
-    "emailservice": {**HEALTHY, "count": 96_000},
-    "adservice": {**HEALTHY, "count": 640_000},
-    "quoteservice": {**HEALTHY, "count": 180_000},
+    "playback-api":     {"metric": "playback_session_start_total", **HEALTHY, "count": 2_100_000},
+    "cdn-edge":         {"metric": "segment_request_total",        **HEALTHY, "count": 9_400_000},
+    "manifest-service": {"metric": "http_server_request_duration_seconds_count", **HEALTHY, "count": 1_800_000},
+    "catalog-api":      {"metric": "http_server_request_duration_seconds_count", **HEALTHY, "count": 1_200_000},
+    "entitlements":     {"metric": "http_server_request_duration_seconds_count", **HEALTHY, "count": 880_000},
+    "search-api":       {"metric": "http_server_request_duration_seconds_count", **HEALTHY, "count": 760_000},
+    "recommendations":  {"metric": "http_server_request_duration_seconds_count", **HEALTHY, "count": 690_000},
+    "render-farm":      {"metric": "render_task_total",            **HEALTHY, "count": 140_000},
 
-    # The hero finding: a 2.3x burn on a service that has a real SLO.
-    # Nothing pages. The budget is two-thirds gone.
-    "paymentservice": {"default": 2.3, "windows": {}, "count": 305_000},
+    # The hero finding: DRM denials at 2.3x on a service that has a real SLO.
+    # Nothing pages. One viewer in 435 is refused content they paid for.
+    "drm-license": {"metric": "drm_license_request_total", "default": 2.3,
+                    "windows": {}, "count": 1_740_000},
 
-    # The provisional finding: no SLO defined, so the target is derived.
-    "recommendationservice": {"default": 1.8, "windows": {}, "count": 720_000},
+    # The provisional finding: nobody writes an SLO for subtitles, which is
+    # exactly why this went unnoticed. It is also an accessibility failure.
+    "subtitle-service": {"metric": "subtitle_fetch_total",
+                         "default": 1.8, "windows": {}, "count": 620_000},
 
-    # The red herring: badly burnt over the long windows, fully recovered on
-    # every short one. The agent must report nothing.
-    "cartservice": {
-        "default": 9.5,
-        "windows": {"5m": 0.05, "30m": 0.05, "2h": 0.04, "6h": 0.06},
-        "count": 880_000,
-    },
+    # The red herring: a transcode batch that failed hard for an hour and then
+    # recovered. Burnt over 3d, clean over 6h. The agent must stay quiet.
+    "transcode-worker": {"metric": "transcode_job_total", "default": 9.5,
+                         "windows": {"5m": 0.05, "30m": 0.05, "2h": 0.04, "6h": 0.06},
+                         "count": 96_000},
 }
 
-#: Four services have human-defined SLOs; the other seven do not.
+#: Four services carry human-defined SLOs; the other seven carry none.
 DEFINED_SLOS = {
-    "frontend": 0.995,
-    "checkoutservice": 0.999,
-    "cartservice": 0.999,
-    "paymentservice": 0.999,
+    "playback-api": 0.999,
+    "drm-license": 0.999,
+    "cdn-edge": 0.9995,
+    "manifest-service": 0.999,
 }
 
 #: 30-day consumption, so budget-remaining is a real number in the report.
 BUDGET_BURN_30D = {
-    "paymentservice": 0.66,        # 34% of the budget left
-    "recommendationservice": 0.41,  # 59% left
+    "drm-license": 0.66,       # 34% of the budget left
+    "subtitle-service": 0.41,  # 59% left
 }
+
+DASHBOARDS = [
+    {"uid": "media-playback", "title": "Playback API"},
+    {"uid": "media-drm", "title": "DRM License"},
+    {"uid": "media-cdn", "title": "CDN Edge"},
+    {"uid": "media-transcode", "title": "Transcode Worker"},
+    {"uid": "media-subtitle", "title": "Subtitle Service"},
+]
 
 
 class GoldenStack:
-    """A believable mcp-grafana, shaped like the OpenTelemetry demo."""
+    """A believable mcp-grafana, shaped like the mediastack simulator."""
 
     async def call(self, name: str, arguments: dict):
         if name == tools.LIST_DATASOURCES:
@@ -88,26 +97,22 @@ class GoldenStack:
         if name == tools.LIST_METRIC_NAMES:
             if arguments.get("regex", "").startswith("grafana_slo"):
                 return ["grafana_slo_objective", "grafana_slo_error_budget_remaining"]
-            return [
-                "http_server_request_duration_seconds_count",
-                "http_server_request_duration_seconds_bucket",
-                "http_server_request_duration_seconds_sum",
-                "rpc_server_duration_milliseconds_count",
-                "target_info",
-                "up",
-            ]
+            return sorted({s["metric"] for s in SERVICES.values()}) + ["target_info", "up"]
 
         if name == tools.LIST_LABEL_VALUES:
-            return sorted(SERVICES)
+            # `matches` is a list of Selector objects; pull the metric out of it
+            # so each profile only sees the services that report it.
+            metric = None
+            for sel in arguments.get("matches", []):
+                for f in sel.get("filters", []):
+                    if f.get("name") == "__name__":
+                        metric = f.get("value")
+            if metric is None:
+                return sorted(SERVICES)
+            return sorted(n for n, s in SERVICES.items() if s["metric"] == metric)
 
         if name == tools.SEARCH_DASHBOARDS:
-            return [
-                {"uid": "otel-demo-frontend", "title": "Frontend"},
-                {"uid": "otel-demo-payment", "title": "Payment Service"},
-                {"uid": "otel-demo-cart", "title": "Cart Service"},
-                {"uid": "otel-demo-checkout", "title": "Checkout Service"},
-                {"uid": "otel-demo-recs", "title": "Recommendation Service"},
-            ]
+            return DASHBOARDS
 
         if name == tools.QUERY_PROMETHEUS:
             return self._prometheus(arguments["expr"])
@@ -128,10 +133,16 @@ class GoldenStack:
         if profile is None:
             return []
 
+        # Only answer for the metric family this service actually reports.
+        if profile["metric"] not in expr:
+            return []
+
         window = re.search(r"\[(\w+)\]", expr).group(1)
 
         # A bare sum(increase(...)) with no error selector is the denominator.
-        if expr.startswith("sum(increase(") and "status_code" not in expr:
+        if expr.startswith("sum(increase(") and not any(
+            k in expr for k in ("outcome", "status_code")
+        ):
             return [[1_757_000_000, str(profile["count"])]]
 
         if window == "30d":
@@ -154,18 +165,17 @@ async def main() -> int:
     caller = Recording()
     inventory = await discover(caller)
     candidates = await detect(caller, inventory)
-
     recorder.save()
 
     print(f"recorded {len(recorder.entries)} MCP responses -> {OUT}")
     print()
     print(inventory.summary())
     print()
-    print(describe(candidates))
+    print(describe(candidates, inventory))
     print()
     quiet = sorted(set(SERVICES) - {c.service for c in candidates})
     print(f"stayed quiet about {len(quiet)} services, including the red herring "
-          f"(cartservice): {'cartservice' in quiet}")
+          f"(transcode-worker): {'transcode-worker' in quiet}")
     return 0
 
 

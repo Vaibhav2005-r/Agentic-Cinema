@@ -130,7 +130,7 @@ async def cmd_sweep(args: argparse.Namespace) -> int:
         inventory, candidates = await run_detection(replay, detection)
         print(inventory.summary())
         print()
-        print(describe(candidates))
+        print(describe(candidates, inventory))
         return 0
 
     config, recorder = live
@@ -139,7 +139,7 @@ async def cmd_sweep(args: argparse.Namespace) -> int:
             inventory, candidates = await run_detection(caller, detection)
             print(inventory.summary())
             print()
-            print(describe(candidates))
+            print(describe(candidates, inventory))
             if recorder:
                 print(f"\nfixtures written to {recorder.save()}")
             return 0
@@ -208,11 +208,6 @@ async def cmd_chaos(args: argparse.Namespace) -> int:
         return 0
 
     path = Path(args.config)
-    if not path.exists():
-        print(f"error: flagd config not found at {path}", file=sys.stderr)
-        print("Point --config at the demo's src/flagd/demo.flagd.json", file=sys.stderr)
-        return 1
-
     if args.reset:
         chaos.reset(path)
         print(f"all scenarios disabled in {path}")
@@ -225,11 +220,10 @@ async def cmd_chaos(args: argparse.Namespace) -> int:
     applied = chaos.apply(path, args.scenario, enabled=not args.off)
     verb = "disabled" if args.off else "enabled"
     for scenario in applied:
-        on, _ = scenario.weights()
-        print(f"{verb} {scenario.name}: {scenario.flag} at "
+        print(f"{verb} {scenario.name}: {scenario.service} at "
               f"{scenario.error_fraction() * 100:.3f}% "
-              f"(targets a {scenario.target_burn_rate}x burn)")
-    print(f"\nflagd hot-reloads {path}; no restart needed.")
+              f"(1 in {scenario.one_in():,}; targets a {scenario.target_burn_rate}x burn)")
+    print(f"\nthe simulator re-reads {path} each tick; no restart needed.")
     return 0
 
 
@@ -291,8 +285,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     chaos = sub.add_parser("chaos", help="drive the OTel demo's failure injection")
     chaos.add_argument("scenario", nargs="*", help="slow_burn, provisional, red_herring")
-    chaos.add_argument("--config", default="src/flagd/demo.flagd.json",
-                       help="path to the demo's flagd config")
+    chaos.add_argument("--config", default="mediastack/scenarios.json",
+                       help="path to the simulator's scenario file")
     chaos.add_argument("--off", action="store_true", help="disable instead of enable")
     chaos.add_argument("--reset", action="store_true", help="disable every scenario")
     chaos.add_argument("--list", action="store_true", help="describe the scenarios")

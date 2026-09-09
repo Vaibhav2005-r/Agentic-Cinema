@@ -1,37 +1,44 @@
-# SLO Watchdog
+# SLO Watchdog — reliability for the streaming pipeline
 
-**An autonomous agent that finds the reliability problems nobody paged on.**
+**An autonomous agent that finds the viewer-facing failures nobody paged on.**
 
-Most observability agents wait to be told something is wrong. They read a firing
-alert and summarise it. This one has no alert to start from. It wakes on a
-schedule, sweeps every service it can find in the Grafana stack, computes
-error-budget burn deterministically, and hunts for the two things alerting is
-structurally bad at:
-
-1. **Slow burns.** A 2× burn rate never pages, but it quietly eats a month of
-   error budget in days.
-2. **Unwatched surfaces.** Services with no SLO defined at all — the ones nobody
-   thought to instrument an alert for.
-
-When it finds something it correlates metrics → logs → traces, writes a
-root-cause hypothesis with evidence, opens a Grafana IRM incident, and annotates
-the dashboard at the exact window, so the next human to look sees the agent's
-marker in place.
-
-> Your alerts tell you what broke. This tells you what's breaking.
-
-Built on the [Google Agent Development Kit](https://google.github.io/adk-docs/)
-and the [open-source Grafana MCP server](https://github.com/grafana/mcp-grafana).
+Built for **Agentic Cinema** on the **Grafana Labs** track. Powered by Gemini
+via the Google Agent Development Kit, and driven end to end by the
+[Grafana MCP server](https://github.com/grafana/mcp-grafana).
 
 ---
 
-## See it work, with no Grafana account
+## The problem
 
-The repository ships a recorded sweep, so a full run works offline:
+A streaming platform's worst failures are the ones that never page.
+
+A DRM licence service denying 0.23% of requests looks like nothing on a
+dashboard. No alert fires — it is nowhere near a paging threshold. But that is
+**1 viewer in 435 who pressed play on content they paid for and got an error**.
+At the volume of a mid-size platform, that is thousands of people a day, every
+day, until someone happens to look.
+
+The second failure mode is worse: nobody defines an SLO for subtitle delivery,
+transcode workers, or the render farm. Those surfaces have no alerts at all,
+because no one thought to write one.
+
+Most observability agents wait to be handed a firing alert and summarise it.
+This one has no alert to start from. It wakes on a schedule, sweeps every
+service it can find through Grafana MCP, computes error-budget burn
+deterministically, and hunts the two things alerting is structurally bad at:
+
+1. **Slow burns** — a 2× burn never pages, but it eats a month of budget in days.
+2. **Unwatched surfaces** — services with no SLO defined at all.
+
+> Your alerts tell you what broke. This tells you what's breaking — and what it
+> costs the audience.
+
+---
+
+## What a sweep produces
 
 ```bash
-python3.12 -m venv .venv && ./.venv/bin/pip install -e ".[dev]"
-./.venv/bin/slo-watchdog sweep --replay fixtures/golden-sweep.json
+slo-watchdog sweep --replay fixtures/golden-sweep.json
 ```
 
 ```
@@ -39,60 +46,81 @@ python3.12 -m venv .venv && ./.venv/bin/pip install -e ".[dev]"
 
 SERVICE                      TIER          BURN WINDOWS      BUDGET CONF    SLO
 -------------------------------------------------------------------------------
-paymentservice               watchdog      2.3x 3d/6h         34.0% high    defined      exhausts 2026-09-14
-recommendationservice        watchdog      1.8x 3d/6h         59.0% high    provisional  exhausts 2026-09-19
+drm-license                  watchdog      2.3x 3d/6h         34.0% high    defined
+    -> 1 in 435 license requests fail; about 1,334 a day -- a viewer was
+       refused a licence for content they paid for
+subtitle-service             watchdog      1.8x 3d/6h         59.0% high    provisional
+    -> 1 in 556 subtitle fetches fail; about 372 a day -- a viewer who needs
+       captions was served none (an accessibility failure)
 ```
 
-Eleven services. Two findings. Neither would page. One of them is on a service
-with no SLO at all. And `cartservice` — which burnt at 9.5× over three days and
-then recovered — is deliberately **not** reported, because the short window says
-it is over.
+Eleven services. Two findings, **neither of which would page**. One is on a
+service with no SLO at all. And `transcode-worker` — which burnt at 9.5× for an
+hour during a batch job and then recovered — is deliberately **not** reported,
+because the short window says it is over.
+
+Every burn rate is also stated in audience terms. "2.3×" is actionable to an
+SRE and meaningless to a duty manager; "1 in 435 viewers refused a licence" is
+actionable to both.
+
+---
+
+## Grafana MCP is the runtime spine
+
+The agent has no Grafana SDK, no HTTP client, and no direct datasource access.
+**Every read and every write goes through the Grafana MCP server.** Remove it
+and the project does nothing at all.
+
+| # | Stage | Owner | Grafana MCP tools called |
+|---|-------|-------|--------------------------|
+| 1 | **Discover** — build a service inventory | Python | `list_datasources`, `list_prometheus_metric_names`, `list_prometheus_label_values`, `search_dashboards` |
+| 2 | **Detect** — multi-window burn-rate math | Python | `query_prometheus` |
+| 3 | **Triage** — real signal or artefact? | Agent | `query_prometheus`, `get_dashboard_panel_queries` |
+| 4 | **Correlate** — logs for the burn window | Agent | `query_loki_logs`, `query_loki_patterns`, `find_error_pattern_logs` |
+| 5 | **Hypothesise** — write the root cause | Agent | — |
+| 6 | **Act** — file and mark | Agent | `create_incident`, `create_annotation`, `generate_deeplink`, `get_panel_image` |
+| 7 | **Report** — bundle and emit | Python | — |
+
+Stages 1–2 open their own MCP session and call tools directly, with no LLM in
+the loop. Stages 3–6 reach the same server through ADK's `McpToolset`. Verify
+the whole surface before running anything:
 
 ```bash
-./.venv/bin/python -m pytest        # 139 tests, no network, no tokens
+slo-watchdog doctor --schemas
 ```
+
+That checks all eleven required tools are present and prints each one's
+argument names. It matters more than it looks: mcp-grafana silently registers
+*nothing* for a category missing from `--enabled-tools`, so a forgotten
+category surfaces much later as an empty result rather than an error.
 
 ---
 
 ## Architecture
 
-Each scheduled run is a seven-stage pipeline. Stages 1–2 are deterministic
-Python. Stages 3–6 are the agent. That split is the most important design
-decision in the project.
-
 ```
-                        ┌──────────────── deterministic Python ────────────────┐
-   schedule ──▶  1 Discover  ──▶  2 Detect  ──▶  Candidate  ────┐
-                 inventory       burn-rate math   (structured)  │
-                 of services     multi-window                   │
-                        └──────────────────────────────────────┘│
-                                                                ▼
-                        ┌──────────────────── the agent ──────────────────────┐
-                        │  3 Triage ──▶ 4 Correlate ──▶ 5 Hypothesise         │
-                        │     investigator (read-only)                        │
-                        │                      │                              │
-                        │                      ▼                              │
-                        │              6 Act — responder                      │
-                        │        create_incident · create_annotation          │
-                        └─────────────────────────────────────────────────────┘
-                                                │
-                                                ▼
-                                        7 Report (Python)
+                    ┌──────────── deterministic Python ────────────┐
+ schedule ──▶ 1 Discover ──▶ 2 Detect ──▶ Candidate ───┐
+              (MCP)          (MCP)        + audience   │
+                                            impact     │
+                    └──────────────────────────────────┘
+                                                       ▼
+                    ┌──────────────── the agent ───────────────────┐
+                    │ 3 Triage ─▶ 4 Correlate ─▶ 5 Hypothesise     │
+                    │        investigator (read-only, MCP)         │
+                    │                    │                         │
+                    │                    ▼                         │
+                    │            6 Act — responder (MCP)           │
+                    │   create_incident · create_annotation        │
+                    └──────────────────────────────────────────────┘
+                                        │
+                                        ▼
+                                7 Report (Python)
 ```
 
-| # | Stage | Owner | Grafana MCP tools |
-|---|-------|-------|-------------------|
-| 1 | **Discover** — build a service inventory | Python | `list_datasources`, `list_prometheus_metric_names`, `list_prometheus_label_values`, `search_dashboards` |
-| 2 | **Detect** — multi-window burn-rate math | Python | `query_prometheus` |
-| 3 | **Triage** — real signal or noise? | Agent | `query_prometheus`, `get_dashboard_panel_queries` |
-| 4 | **Correlate** — logs and traces for the window | Agent | `query_loki_logs`, `query_loki_patterns`, `find_error_pattern_logs` |
-| 5 | **Hypothesise** — write the root-cause narrative | Agent | — |
-| 6 | **Act** — file the incident, mark the dashboard | Agent | `create_incident`, `create_annotation`, `generate_deeplink`, `get_panel_image` |
-| 7 | **Report** — bundle and emit | Python | — |
-
-**Agent topology** is one root agent with two sub-agents — `investigator`
-(stages 3–5, read-only) and `responder` (stage 6, the only agent permitted to
-write). A six-agent swarm demos worse and debugs harder.
+One root agent with two sub-agents — `investigator` (stages 3–5, read-only) and
+`responder` (stage 6, the only agent permitted to write). A six-agent swarm
+demos worse and debugs harder.
 
 ---
 
@@ -100,8 +128,8 @@ write). A six-agent swarm demos worse and debugs harder.
 
 Standard [Google SRE Workbook](https://sre.google/workbook/alerting-on-slos/)
 burn-rate alerting, computed in Python from `query_prometheus` results. Burn
-rate is `error_ratio / (1 - SLO)`: a burn rate of 1 exhausts exactly your budget
-over the SLO window; 14.4 exhausts 2% of a 30-day budget in one hour.
+rate is `error_ratio / (1 - SLO)`: 1.0 exhausts exactly your budget over the SLO
+window; 14.4 exhausts 2% of a 30-day budget in an hour.
 
 | Tier | Burn rate | Long window | Short window | Normally |
 |------|-----------|-------------|--------------|----------|
@@ -110,34 +138,22 @@ over the SLO window; 14.4 exhausts 2% of a 30-day budget in one hour.
 | Ticket | 3× | 1d | 2h | Often unrouted |
 | **Watchdog** | **1×–3×** | **3d** | **6h** | **Nobody is looking** |
 
-A candidate fires only when **both** the long and short windows exceed the
-threshold. The short window is what stops the agent reporting a burn that has
-already ended — the red-herring suppression above. Every short window is
-exactly 1/12 of its long window, the Workbook's ratio; there is a test that
-fails if that invariant is ever broken.
+A candidate fires only when **both** windows exceed the threshold — the short
+window is what suppresses the recovered transcode spike. Every short window is
+exactly 1/12 of its long window, the Workbook's ratio, and a test fails if that
+invariant is ever broken. By default the sweep **excludes the paging tiers
+entirely**: they already have an owner and a pager, and reporting them would
+bury the point.
 
-By default the sweep **excludes the two paging tiers entirely**. They already
-have an owner and a pager. Reporting them would bury the point. Pass
-`--include-paging` to see everything.
+**Services with no SLO** get a provisional SLI derived from their RED metrics at
+an assumed 99.9%, flagged `provisional` everywhere it surfaces. This is the
+highest-value finding class: *you have eleven services and SLOs on four; here
+are two of the other seven that are in trouble.*
 
-### Services with no SLO
-
-For services with nothing defined, the watchdog derives a provisional SLI from
-RED metrics and assumes 99.9%, flagging every such finding as `provisional`.
-This is the highest-value finding class and the easiest to understand: *you have
-eleven services and SLOs on four of them; here are two of the other seven that
-are in trouble.*
-
-### Low-traffic services
-
-The Workbook is explicit that burn-rate alerting breaks down on low-traffic
-services: at ten requests an hour, a single failure is a 10% error rate that
-burns 13.9% of a 30-day budget. The arithmetic is real, so it fires.
-
-The watchdog handles this with a one-sided z-score on the binomial proportion,
-which is what separates a genuine 0.23% degradation across 300,000 requests from
-three unlucky requests out of two hundred. Low-volume candidates are dropped
-before they cost a token, and surviving ones carry an honest `confidence`.
+**Low-traffic services** are where burn-rate alerting is known to break down —
+the Workbook's own example is ten requests an hour where one failure burns 13.9%
+of a 30-day budget. The watchdog applies a one-sided z-score on the binomial
+proportion, so three unlucky requests out of two hundred never becomes a crisis.
 
 ---
 
@@ -146,21 +162,18 @@ before they cost a token, and surviving ones carry an honest `confidence`.
 Language models are unreliable arithmetic engines, and the published numbers on
 agentic root-cause analysis are sobering: LLM-agent methods score around
 **11.34% accuracy on the OpenRCA benchmark**. An agent that both detects *and*
-explains is compounding a weak step with a strong one.
+explains compounds a weak step with a strong one.
 
-So every ratio, threshold comparison and window calculation happens in Python
-against raw PromQL results. The agent receives a structured candidate — service,
-SLI, burn rate, windows, confidence — and reasons about **meaning, not numbers**.
+So every ratio, threshold, window and impact figure is computed in Python from
+raw PromQL. The agent receives a structured candidate and reasons about
+**meaning, not numbers**.
 
-Three things follow:
-
-- **It is testable.** The detection layer has 139 tests and needs no network.
+- **It is testable.** 188 tests, no network, no tokens.
 - **It is cheap.** Passing a computed candidate instead of raw time series cuts
-  token cost by roughly an order of magnitude. A full sweep of fifteen services
-  costs about **nine cents**.
+  token cost by roughly an order of magnitude — a full sweep costs about **nine cents**.
 - **It cannot lie about the numbers.** `_apply_agent_result` merges only
-  narrative fields onto the detector's output. A hallucinated burn rate is
-  physically unable to reach the report, and there is a test for it.
+  narrative fields. A hallucinated burn rate is physically unable to reach the
+  report, and there is a test for it.
 
 > *The agent doesn't do the math — it does the judgement.*
 
@@ -168,45 +181,62 @@ Three things follow:
 
 ## Setup
 
-### 0. Grafana Cloud (do this first)
+### 1. Grafana Cloud
 
-1. Create a [free Grafana Cloud account](https://grafana.com/products/cloud/).
-2. **Accept the Grafana Assistant terms as a stack administrator.** Nothing else
+1. Create a [free account](https://grafana.com/products/cloud/).
+2. **Accept the Grafana Assistant terms as a stack administrator.** Nothing
    works until this is done.
-3. Confirm you have the Editor role or higher.
-4. Create a service account and token, scoped to exactly:
-   `datasources:read`, `datasources:query`, `dashboards:read`,
-   `annotations:write`, and Editor for IRM incidents.
+3. Create a service account token with exactly: `datasources:read`,
+   `datasources:query`, `dashboards:read`, `annotations:write`, and Editor for
+   IRM incidents.
 
 ```bash
-cp .env.example .env    # then fill in GRAFANA_URL and GRAFANA_SA_TOKEN
+cp .env.example .env      # fill in GRAFANA_URL and GRAFANA_SA_TOKEN
 ```
 
-### 1. Install the MCP server
+### 2. The MCP server
 
 ```bash
 go install github.com/grafana/mcp-grafana/cmd/mcp-grafana@latest
+slo-watchdog doctor       # verify before anything else
 ```
 
-### 2. Verify the connection before anything else
+### 3. The workload
+
+`mediastack/` is a synthetic streaming platform — eleven services across
+playback, DRM, CDN, post-production and VFX — that emits OTLP straight to
+Grafana Cloud. One Python process, **no Docker**, and about 29 active series, so
+the whole demo fits inside the free tier's 10,000-series cap with room for SLO
+recording rules.
 
 ```bash
-./.venv/bin/slo-watchdog doctor --schemas
+python mediastack/simulate.py --rate 40
 ```
 
-`doctor` checks every tool the sweep depends on and prints each one's argument
-names. This matters more than it looks: mcp-grafana silently registers *nothing*
-for a category missing from `--enabled-tools`, so a forgotten category shows up
-much later as an empty result rather than an error.
-
-### 3. Run
+Then inject a failure. Scenarios are specified by the **burn rate they should
+produce**, not by a magic percentage, so the detector's answer can be checked
+against what was asked for:
 
 ```bash
-slo-watchdog discover                  # stage 1: what exists, what has an SLO
-slo-watchdog sweep                     # stages 1-2: ranked candidates, no LLM
+slo-watchdog chaos --list
+slo-watchdog chaos drm_slow_burn
+```
+
+| Scenario | Service | Burn | Produces |
+|----------|---------|------|----------|
+| `drm_slow_burn` | `drm-license` | 2.3× | The hero finding — 1 in 435 viewers refused a licence |
+| `subtitle_degradation` | `subtitle-service` | 1.8× | A finding on a service with no SLO — an accessibility failure |
+| `transcode_spike` | `transcode-worker` | 12× | A batch that fails and recovers; the agent must stay quiet |
+| `render_farm_burn` | `render-farm` | 2.9× | Frames failing quietly, burning artist days |
+
+### 4. Run
+
+```bash
+slo-watchdog discover                  # what exists, what has an SLO
+slo-watchdog sweep                     # ranked candidates, no LLM
 slo-watchdog sweep --agent             # the full run, dry-run by default
 slo-watchdog sweep --agent --execute   # actually file incidents and annotations
-slo-watchdog sweep --record fixtures/my-run.json   # snapshot a golden run
+slo-watchdog sweep --record fixtures/my-run.json
 ```
 
 Writes are **off by default**. `--dry-run` is not a prompt instruction — it is a
@@ -215,124 +245,78 @@ server, because prompt instructions are not a security boundary.
 
 ---
 
-## Demo environment
-
-An agent that finds nothing is not a demo, so this is the first thing to build.
-
-```bash
-git clone https://github.com/open-telemetry/opentelemetry-demo.git
-cd opentelemetry-demo && cp -r ../demo .
-docker compose -f docker-compose.yml -f demo/docker-compose.override.yml up -d
-```
-
-Then drive the failure injection. Scenarios are specified by the **burn rate
-they should produce**, not by a magic percentage, so the detector's answer can be
-checked against what was asked for:
-
-```bash
-slo-watchdog chaos --list
-slo-watchdog chaos slow_burn --config src/flagd/demo.flagd.json
-```
-
-| Scenario | Flag | Burn | Produces |
-|----------|------|------|----------|
-| `slow_burn` | `paymentServiceFailure` | 2.3× | The hero finding — under every paging threshold |
-| `provisional` | `recommendationServiceCacheFailure` | 1.8× | A finding on a service with no SLO |
-| `red_herring` | `cartServiceFailure` | 12× | A spike that recovers; the agent must stay quiet |
-
-### Free-tier cardinality — read this before you deploy
-
-The Grafana Cloud free tier allows **10,000 active series**. An untrimmed
-OpenTelemetry demo will exhaust that quickly: it emits per-route, per-status,
-per-container histograms across ~15 services, and every histogram bucket is its
-own series.
-
-`demo/otelcol-config.yaml` keeps the sweep's inputs and drops the rest — it
-filters to the two metric families the SLIs need and deletes the unbounded
-attributes (`http.route` is the expensive one; product IDs in the path make it
-unbounded). Logs and traces pass through intact, since 50 GB/month is generous
-next to 10k series.
-
-Budget the rest of your allowance carefully: each Grafana SLO you define
-compiles to 10–12 recording rules.
-
----
-
 ## The reflexive layer: an agent that is observable
 
-The closing shot of the demo is a Grafana dashboard showing the agent's own
-trace. `observability.py` instruments each sweep as one root span with child
-spans per stage, and emits `candidates_detected`, `findings_confirmed`,
-`incidents_created`, `mcp_tool_calls` and `sweep_cost_usd`.
+`observability.py` instruments each sweep as one root span with child spans per
+stage, emitting `candidates_detected`, `findings_confirmed`, `incidents_created`,
+`mcp_tool_calls` and `sweep_cost_usd` to Grafana Cloud AI Observability. It is a
+no-op when `AGENTO11Y_ENDPOINT` is unset, so the sweep runs without it.
 
-Two things to know:
-
-- **`TracerProvider` and `MeterProvider` are configured before the client is
-  constructed.** Without them the SDK silently discards everything.
-- **Install `agento11y` alone — not `agento11y-gemini`.** See below.
-
-The whole module is a no-op when `AGENTO11Y_ENDPOINT` is unset, so the sweep
-still runs on a machine with no access-policy token.
+Two things to know: **providers before client** — `TracerProvider` and
+`MeterProvider` must be configured before the agento11y client is constructed or
+the SDK silently discards everything. And **install `agento11y` alone**, never
+`agento11y-gemini` — see below.
 
 ---
 
 ## Notes for anyone building on this
 
-Four things cost real time to discover. They are fixed in this repo; they are
-recorded here because the documentation does not mention them.
+Five things cost real time to discover. They are fixed here; the documentation
+does not mention them.
 
-**1. `google-adk` and `agento11y-gemini` cannot coexist.**
-`agento11y-gemini` pins `google-genai<2`; `google-adk` 2.8 requires `>=2.19`.
-Installing the pair silently downgrades `google-genai` and `LlmAgent` stops
-importing. Install `agento11y` alone — ADK already emits OpenTelemetry spans for
-its own LLM calls, which is the layer worth instrumenting. Also pin
-`opentelemetry-{api,sdk}==1.42.1`, since agento11y's floors are open-ended and
+**1. `query_prometheus` requires `endTime`, even for an instant query.** Omit it
+and every query fails — which takes the entire detection engine with it. The
+argument shapes in `tools.py` are transcribed from mcp-grafana's Go structs
+(`tools/*.go`, the `json:"..."` tags), not inferred. Related: `matches` on
+`list_prometheus_label_values` is a list of `Selector` **objects**, not metric
+name strings; Loki's expression parameter is `logql`, not `expr`; and
+`list_prometheus_metric_names` defaults to a limit of **10**, which silently
+truncates discovery.
+
+**2. `google-adk` and `agento11y-gemini` cannot coexist.** The former requires
+`google-genai>=2.19`, the latter pins `<2`. Installing the pair silently
+downgrades genai until `LlmAgent` stops importing. Pin
+`opentelemetry-{api,sdk}==1.42.1` too — agento11y's floors are open-ended and
 float above ADK's ceiling.
 
-**2. `McpToolset` needs the `[mcp]` extra, and the failure is misleading.**
-`pip install google-adk` alone gives you
-`ImportError: cannot import name 'McpToolset'`, because ADK's `mcp_tool/__init__`
-wraps its imports in a bare `try/except`. Worse, a plain `pip install mcp`
-resolves to 2.x while ADK pins `mcp>=1.24,<2`. Install
-`google-adk[mcp]` and let the resolver do it.
+**3. `McpToolset` needs the `[mcp]` extra, and the failure is misleading.**
+`pip install google-adk` alone gives `ImportError: cannot import name
+'McpToolset'`, because ADK wraps those imports in a bare `try/except`. A plain
+`pip install mcp` also resolves to 2.x against ADK's `mcp>=1.24,<2` pin.
 
-**3. Scope `--enabled-tools`, but not too far.** All 60+ tools in context
-degrades tool selection — but the obvious eight-category list drops three tools
-this pipeline needs: `get_dashboard_panel_queries` (category `dashboard`),
-`find_error_pattern_logs` (`sift`) and `get_panel_image` (`rendering`). The
-categories in `mcp_client.py` are each load-bearing; `slo-watchdog doctor` is
-there to catch a mistake here.
+**4. Scope `--enabled-tools`, but not too far.** The obvious eight-category list
+drops three tools this pipeline needs: `get_dashboard_panel_queries`
+(`dashboard`), `find_error_pattern_logs` (`sift`) and `get_panel_image`
+(`rendering`). Every category in `mcp_client.py` is load-bearing.
 
-**4. `find_error_pattern_logs` is a *write* tool.** It reads logs, but it creates
-a Sift investigation, so `--disable-write` removes it. Running the investigator
-read-only silently costs you log-pattern analysis. This is why the dry-run gate
-lives in our code rather than on the server.
+**5. `find_error_pattern_logs` is a *write* tool.** It reads logs but creates a
+Sift investigation, so `--disable-write` removes it. Running the investigator
+read-only silently costs you log-pattern analysis — which is why the dry-run
+gate lives in our code rather than on the server.
 
-Also worth knowing: the hosted endpoint at `mcp.grafana.com` authenticates
-interactively via **OAuth 2.1**. That is fine for building and fatal for an agent
-whose premise is running unattended on a schedule. This project uses the
-open-source server with a service-account token, which the sponsor requirement
-explicitly accepts.
+Finally: the hosted endpoint at `mcp.grafana.com` authenticates interactively
+via **OAuth 2.1**. Fine for building, fatal for an agent whose premise is running
+unattended on a schedule. This project uses the open-source server with a
+service-account token, which the sponsor requirement explicitly accepts.
 
 ---
 
 ## Prior art
 
-- **[Google SRE Workbook — Alerting on SLOs](https://sre.google/workbook/alerting-on-slos/).**
-  The source of the burn-rate table, the 1/12 short-window ratio, and the
-  low-traffic pathology this project's confidence check exists to handle.
-- **[RCAgent (CIKM '24)](https://dl.acm.org/doi/10.1145/3627673.3680016).**
-  Tool-augmented autonomous agents for cloud RCA — formulates RCA as
-  execution-based reasoning over traces, logs and metrics.
-- **[Exploring LLM-based Agents for Root Cause Analysis](https://arxiv.org/abs/2403.04123)** and
-  **[GALA](https://arxiv.org/html/2608.08968)**. Benchmarks put LLM-agent RCA
-  accuracy around 11.34% on OpenRCA — the evidence behind keeping detection
-  deterministic and using the model only for correlation and narrative.
+- **[Google SRE Workbook — Alerting on SLOs](https://sre.google/workbook/alerting-on-slos/)** —
+  source of the burn-rate table, the 1/12 short-window ratio, and the low-traffic
+  pathology the confidence check exists to handle.
+- **[RCAgent (CIKM '24)](https://dl.acm.org/doi/10.1145/3627673.3680016)** —
+  tool-augmented autonomous agents for cloud root-cause analysis.
+- **[Exploring LLM-based Agents for RCA](https://arxiv.org/abs/2403.04123)**,
+  **[GALA](https://arxiv.org/html/2608.08968)** — benchmarks putting LLM-agent RCA
+  near 11.34% on OpenRCA, the evidence behind keeping detection deterministic.
 
 Where this differs: the cited work starts from a known incident and explains it.
 This starts from an inventory and decides *what deserves to be an incident* —
-including on services with no SLO, which is a case the Workbook's table does not
-cover at all.
+including on services with no SLO, a case the Workbook's table does not cover at
+all, and translates the result into audience impact rather than leaving it as a
+ratio.
 
 ---
 
@@ -341,20 +325,21 @@ cover at all.
 ```
 src/slo_watchdog/
   burn_rate.py     the math — pure functions, no I/O, no LLM
-  promql.py        query construction; the agent never writes PromQL
-  discovery.py     stage 1: service inventory, SLO detection
+  impact.py        burn rate -> "1 in 435 viewers refused a licence"
+  promql.py        media SLI queries; the agent never writes PromQL
+  discovery.py     stage 1: inventory, real vs provisional SLOs
   detect.py        stage 2: sampling and evaluation
   agent.py         stages 3-6: root + investigator + responder
   sweep.py         stage 7: orchestration and reporting
   mcp_client.py    MCP transport, tool scoping, record/replay
-  tools.py         verified tool names and argument shapes
+  tools.py         tool names and argument shapes, from the Go source
   state.py         dedupe across scheduled runs
   chaos.py         failure injection, specified by target burn rate
   observability.py the reflexive layer
   cli.py           doctor · discover · sweep · chaos · state
-demo/              OTel demo wiring with free-tier cardinality trimming
+mediastack/        the synthetic streaming platform (no Docker)
 fixtures/          the recorded golden run
-tests/             139 tests, offline
+tests/             188 tests, offline
 ```
 
 ## Licence

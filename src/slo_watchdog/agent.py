@@ -232,7 +232,11 @@ def make_tool_callback(dry_run: bool, telemetry=None):
     return callback
 
 
-def candidate_briefing(candidate: Candidate, dashboard_uid: str | None = None) -> str:
+def candidate_briefing(
+    candidate: Candidate,
+    dashboard_uid: str | None = None,
+    impact: str | None = None,
+) -> str:
     """The structured hand-off from deterministic detection to the agent.
 
     Deliberately not a time series. Feeding raw series into context costs
@@ -259,6 +263,8 @@ def candidate_briefing(candidate: Candidate, dashboard_uid: str | None = None) -
         "requests_in_long_window": candidate.request_count,
         "dashboard_uid": dashboard_uid,
         "pages_today": candidate.severity == "page",
+        # What this costs a viewer or a production, computed deterministically.
+        "audience_impact": impact,
     }
     return (
         "Investigate this candidate. These numbers are already verified; do not "

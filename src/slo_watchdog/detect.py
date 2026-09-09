@@ -15,6 +15,7 @@ from typing import Any, Iterable
 from . import tools
 from .burn_rate import REQUIRED_WINDOWS, Candidate, RatioSample, evaluate, rank
 from .discovery import DiscoveredService, Inventory
+from .impact import describe_impact
 from .promql import error_ratio_query, request_count_query
 
 log = logging.getLogger(__name__)
@@ -135,11 +136,20 @@ async def detect(
     return rank(candidates)
 
 
-def describe(candidates: Iterable[Candidate]) -> str:
-    """Human-readable ranked table for the CLI and the demo terminal."""
+def describe(candidates: Iterable[Candidate], inventory: Inventory | None = None) -> str:
+    """Human-readable ranked table for the CLI and the demo terminal.
+
+    With an inventory in hand each row also carries what the burn means to a
+    viewer or a production, because "2.3x" is actionable to an SRE and opaque
+    to a duty manager.
+    """
     rows = list(candidates)
     if not rows:
         return "No burn-rate candidates. Every service is inside its budget."
+
+    profiles = (
+        {svc.name: svc.profile for svc in inventory.services} if inventory else {}
+    )
 
     header = (
         f"{'SERVICE':<28} {'TIER':<11} {'BURN':>6} {'WINDOWS':<10} "
@@ -157,4 +167,7 @@ def describe(candidates: Iterable[Candidate]) -> str:
             f"{'provisional' if c.provisional else 'defined'}"
             f"{exhaustion}"
         )
+        profile = profiles.get(c.service)
+        if profile is not None:
+            lines.append(f"    -> {describe_impact(c, profile).sentence()}")
     return "\n".join(lines)

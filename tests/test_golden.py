@@ -34,31 +34,46 @@ async def test_the_golden_inventory(caller):
 
 async def test_the_golden_sweep_reports_exactly_two_findings(caller):
     candidates = await detect(caller, await discover(caller))
-    assert [c.service for c in candidates] == ["paymentservice", "recommendationservice"]
+    assert [c.service for c in candidates] == ["drm-license", "subtitle-service"]
 
 
 async def test_the_hero_finding_is_a_slow_burn_that_would_never_page(caller):
-    payment = (await detect(caller, await discover(caller)))[0]
-    assert payment.service == "paymentservice"
-    assert payment.burn_rate == pytest.approx(2.3, abs=0.05)
-    assert payment.tier.name == "watchdog"
-    assert payment.severity != "page"
-    assert payment.budget_remaining_pct == pytest.approx(34.0, abs=0.5)
-    assert payment.projected_exhaustion is not None
-    assert not payment.provisional  # this one has a real, human-defined SLO
+    """DRM denials: far too small to page, immediately obvious to a viewer."""
+    drm = (await detect(caller, await discover(caller)))[0]
+    assert drm.service == "drm-license"
+    assert drm.burn_rate == pytest.approx(2.3, abs=0.05)
+    assert drm.tier.name == "watchdog"
+    assert drm.severity != "page"
+    assert drm.budget_remaining_pct == pytest.approx(34.0, abs=0.5)
+    assert drm.projected_exhaustion is not None
+    assert not drm.provisional  # this one has a real, human-defined SLO
+
+
+async def test_the_hero_finding_translates_into_audience_impact(caller):
+    """A burn rate is opaque to a duty manager; "1 in 435 viewers" is not."""
+    from slo_watchdog.impact import describe_impact
+
+    inventory = await discover(caller)
+    drm = (await detect(caller, inventory))[0]
+    profile = next(s.profile for s in inventory.services if s.name == "drm-license")
+    impact = describe_impact(drm, profile)
+    assert impact.one_in == 435
+    assert impact.failures_per_day > 1000
+    assert "licence" in impact.sentence()
 
 
 async def test_the_second_finding_exercises_the_provisional_path(caller):
-    recs = (await detect(caller, await discover(caller)))[1]
-    assert recs.service == "recommendationservice"
-    assert recs.provisional
-    assert recs.burn_rate == pytest.approx(1.8, abs=0.05)
+    """Nobody writes an SLO for subtitles, which is why it went unnoticed."""
+    subs = (await detect(caller, await discover(caller)))[1]
+    assert subs.service == "subtitle-service"
+    assert subs.provisional
+    assert subs.burn_rate == pytest.approx(1.8, abs=0.05)
 
 
 async def test_the_red_herring_is_never_reported(caller):
-    """cartservice is badly burnt over 3d and fully recovered over 6h."""
+    """The transcode batch is badly burnt over 3d and fully recovered over 6h."""
     candidates = await detect(caller, await discover(caller))
-    assert "cartservice" not in {c.service for c in candidates}
+    assert "transcode-worker" not in {c.service for c in candidates}
 
 
 async def test_the_sweep_is_quiet_about_the_other_nine_services(caller):

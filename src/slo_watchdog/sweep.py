@@ -17,6 +17,7 @@ from .agent import AgentSettings, build_agents, candidate_briefing
 from .burn_rate import Candidate
 from .detect import DetectionSettings, detect
 from .discovery import Inventory, discover
+from .impact import describe_impact
 from .mcp_client import GrafanaConfig, build_toolset
 from .models import Evidence, Finding, SweepReport
 from .state import StateStore, fingerprint
@@ -125,6 +126,7 @@ async def investigate(
     candidate: Candidate,
     dashboard_uid: str | None,
     *,
+    impact: str | None = None,
     user_id: str,
     session_id: str,
     app_name: str = APP_NAME,
@@ -135,7 +137,7 @@ async def investigate(
     finding = Finding.from_candidate(candidate)
     message = types.Content(
         role="user",
-        parts=[types.Part(text=candidate_briefing(candidate, dashboard_uid))],
+        parts=[types.Part(text=candidate_briefing(candidate, dashboard_uid, impact))],
     )
 
     transcript: list[str] = []
@@ -226,6 +228,7 @@ async def run_sweep(
     from google.adk.runners import InMemoryRunner
 
     dashboards = {s.name: s.dashboard_uid for s in inventory.services}
+    profiles = {s.name: s.profile for s in inventory.services}
     toolset = build_toolset(config)
     try:
         root, _, _ = build_agents(toolset, agent_settings, telemetry=telemetry)
@@ -239,6 +242,11 @@ async def run_sweep(
                     runner,
                     candidate,
                     dashboards.get(candidate.service),
+                    impact=(
+                        describe_impact(candidate, profiles[candidate.service]).sentence()
+                        if candidate.service in profiles
+                        else None
+                    ),
                     user_id="watchdog",
                     session_id=session.id,
                     app_name=APP_NAME,

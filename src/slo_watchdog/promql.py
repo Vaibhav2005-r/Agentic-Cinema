@@ -1,7 +1,12 @@
-"""PromQL construction for SLI ratios.
+"""PromQL construction for media-delivery and production SLIs.
 
 The agent never writes PromQL. These builders do, deterministically, so every
 query in a finding can be replayed by a human verbatim.
+
+The metric families here are the ones a streaming platform and a post house
+actually run on: playback session starts, DRM license issuance, CDN segment
+delivery, transcode jobs and VFX render tasks. Each is a counter partitioned by
+an `outcome` label, which is all a RED-style availability SLI needs.
 """
 
 from __future__ import annotations
@@ -9,20 +14,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-
 @dataclass(frozen=True)
 class MetricProfile:
-    """How to compute a RED-style SLI from one metric family.
+    """How to compute an availability SLI from one metric family.
 
-    The OpenTelemetry demo emits both HTTP and gRPC server metrics; a generic
-    Prometheus stack usually has neither in the same shape. Rather than guess,
-    discovery probes each profile and keeps the ones that return series.
+    Discovery probes each profile and keeps the ones that return series, so a
+    stack that only runs playback services is not asked about render farms.
     """
 
     name: str
     total_metric: str
     service_label: str
     error_selector: str
+    #: What one failed event means to a person. Used to turn a burn rate into
+    #: a sentence a producer or a duty manager can act on.
+    unit: str = "request"
+    impact: str = "a failed request"
     extra_selector: str = ""
 
     def selector(self, service: str, *, errors_only: bool = False) -> str:
@@ -34,39 +41,99 @@ class MetricProfile:
         return "{" + ", ".join(parts) + "}"
 
 
-#: OTel semantic-convention HTTP server metrics, as exported to Prometheus.
+#: Playback start failures. The canonical streaming SLI: the viewer pressed
+#: play and nothing happened. Rarely alerted on per-service, always noticed by
+#: the audience.
+PLAYBACK = MetricProfile(
+    name="playback",
+    total_metric="playback_session_start_total",
+    service_label="service_name",
+    error_selector='outcome!="success"',
+    unit="playback start",
+    impact="a viewer pressed play and got an error",
+)
+
+#: DRM license issuance. A textbook silent failure: a small denial rate looks
+#: like nothing on a dashboard and looks like a broken product to the viewer.
+DRM = MetricProfile(
+    name="drm",
+    total_metric="drm_license_request_total",
+    service_label="service_name",
+    error_selector='outcome=~"denied|error|timeout"',
+    unit="license request",
+    impact="a viewer was refused a licence for content they paid for",
+)
+
+#: CDN segment delivery. Drives rebuffering rather than hard failure.
+SEGMENT = MetricProfile(
+    name="segment",
+    total_metric="segment_request_total",
+    service_label="service_name",
+    error_selector='status_code=~"5.."',
+    unit="segment request",
+    impact="a video segment failed to deliver, causing a rebuffer",
+)
+
+#: VOD transcode jobs. A failed job is a title that misses its release window.
+TRANSCODE = MetricProfile(
+    name="transcode",
+    total_metric="transcode_job_total",
+    service_label="service_name",
+    error_selector='outcome=~"failed|aborted"',
+    unit="transcode job",
+    impact="an asset failed to encode and will miss its publish window",
+)
+
+#: VFX render farm tasks. A quiet failure rate here burns artist days.
+RENDER = MetricProfile(
+    name="render",
+    total_metric="render_task_total",
+    service_label="service_name",
+    error_selector='outcome=~"failed|timeout"',
+    unit="render task",
+    impact="a frame failed to render and must be resubmitted",
+)
+
+#: Subtitle and caption delivery. Almost nobody defines an SLO for this, which
+#: is exactly why it degrades unnoticed -- and a silent failure here is an
+#: accessibility failure, not a cosmetic one.
+SUBTITLE = MetricProfile(
+    name="subtitle",
+    total_metric="subtitle_fetch_total",
+    service_label="service_name",
+    error_selector='outcome!="success"',
+    unit="subtitle fetch",
+    impact="a viewer who needs captions was served none (an accessibility failure)",
+)
+
+#: Generic RED fallback, so ordinary HTTP services in the stack (catalog,
+#: search, entitlements) are still swept even without a bespoke metric.
 OTEL_HTTP = MetricProfile(
     name="otel_http",
     total_metric="http_server_request_duration_seconds_count",
     service_label="service_name",
     error_selector='http_response_status_code=~"5.."',
+    unit="API request",
+    impact="an API call failed",
 )
 
-#: OTel gRPC server metrics. status code 2 == ERROR in the gRPC status enum.
-OTEL_GRPC = MetricProfile(
-    name="otel_grpc",
-    total_metric="rpc_server_duration_milliseconds_count",
-    service_label="service_name",
-    error_selector='rpc_grpc_status_code!="0"',
+PROFILES: tuple[MetricProfile, ...] = (
+    PLAYBACK,
+    DRM,
+    SEGMENT,
+    TRANSCODE,
+    RENDER,
+    SUBTITLE,
+    OTEL_HTTP,
 )
-
-#: Classic Prometheus client_golang / promhttp style.
-GENERIC_HTTP = MetricProfile(
-    name="generic_http",
-    total_metric="http_requests_total",
-    service_label="job",
-    error_selector='code=~"5.."',
-)
-
-PROFILES: tuple[MetricProfile, ...] = (OTEL_HTTP, OTEL_GRPC, GENERIC_HTTP)
 
 
 def error_ratio_query(profile: MetricProfile, service: str, window: str) -> str:
     """Bad events / total events over `window`, as a single scalar.
 
-    The `or vector(0)` guard makes a service with zero errors return 0 rather
+    The `or vector(0)` guard makes a service with zero failures return 0 rather
     than an empty result, which would otherwise be indistinguishable from a
-    service that stopped reporting.
+    service that stopped reporting altogether.
     """
     bad = f"sum(increase({profile.total_metric}{profile.selector(service, errors_only=True)}[{window}]))"
     total = f"sum(increase({profile.total_metric}{profile.selector(service)}[{window}]))"
