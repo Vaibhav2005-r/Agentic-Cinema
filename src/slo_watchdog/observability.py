@@ -30,19 +30,23 @@ log = logging.getLogger(__name__)
 
 SERVICE_NAME = "slo-watchdog"
 
-#: USD per million tokens. Update when pricing moves; used only to put an
-#: order-of-magnitude number on the demo, never for billing.
+#: USD per million tokens, (input, output). Deliberately incomplete: a made-up
+#: rate produces a confident wrong number on screen, which is worse than no
+#: number. Unpriced models report None and the CLI says so. Add your model's
+#: current rate here from https://ai.google.dev/pricing before quoting a cost.
 MODEL_PRICING: dict[str, tuple[float, float]] = {
     "gemini-2.5-pro": (1.25, 10.00),
     "gemini-2.5-flash": (0.30, 2.50),
 }
 
 
-def estimate_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
+def estimate_cost_usd(
+    model: str, input_tokens: int, output_tokens: int
+) -> float | None:
+    """None when we have no published rate for this model."""
     rates = MODEL_PRICING.get(model)
-    if not rates:
-        base = model.rsplit("-", 1)[0]
-        rates = MODEL_PRICING.get(base, (0.0, 0.0))
+    if rates is None:
+        return None
     return (input_tokens * rates[0] + output_tokens * rates[1]) / 1_000_000
 
 
@@ -61,7 +65,7 @@ class SweepMetrics:
     model: str = ""
 
     @property
-    def sweep_cost_usd(self) -> float:
+    def sweep_cost_usd(self) -> float | None:
         return estimate_cost_usd(self.model, self.prompt_tokens, self.completion_tokens)
 
     def as_attributes(self) -> dict[str, Any]:
@@ -74,8 +78,12 @@ class SweepMetrics:
             "slo_watchdog.mcp_tool_calls": self.mcp_tool_calls,
             "slo_watchdog.prompt_tokens": self.prompt_tokens,
             "slo_watchdog.completion_tokens": self.completion_tokens,
-            "slo_watchdog.sweep_cost_usd": round(self.sweep_cost_usd, 6),
             "gen_ai.request.model": self.model,
+            **(
+                {"slo_watchdog.sweep_cost_usd": round(self.sweep_cost_usd, 6)}
+                if self.sweep_cost_usd is not None
+                else {}
+            ),
         }
 
 

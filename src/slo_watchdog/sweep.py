@@ -7,8 +7,10 @@ detection layer developable and demoable without spending a token.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -121,6 +123,78 @@ async def _session_state(runner, *, app_name: str, user_id: str, session_id: str
     return dict(getattr(session, "state", None) or {})
 
 
+#: Free-tier Gemini allows 5 requests per minute per model. One agentic
+#: investigation makes a request per tool-use turn, so a sweep hits that wall
+#: almost immediately. The API tells us how long to wait; honour it.
+_RETRY_DELAY_RE = re.compile(r"[\"']retryDelay[\"']:\s*[\"'](\d+(?:\.\d+)?)s")
+DEFAULT_MAX_RETRIES = 3
+FALLBACK_RETRY_SECONDS = 45.0
+
+
+def is_rate_limited(exc: Exception) -> bool:
+    text = str(exc)
+    return "429" in text or "RESOURCE_EXHAUSTED" in text
+
+
+def is_transient(exc: Exception) -> bool:
+    """503s are the model being busy, not the request being wrong."""
+    text = str(exc)
+    return is_rate_limited(exc) or "503" in text or "UNAVAILABLE" in text
+
+
+def retry_after_seconds(exc: Exception, attempt: int) -> float:
+    """Prefer the delay the API asked for over a guess."""
+    match = _RETRY_DELAY_RE.search(str(exc))
+    if match:
+        return float(match.group(1)) + 1.0
+    return FALLBACK_RETRY_SECONDS * (attempt + 1)
+
+
+async def investigate_with_retry(
+    runner,
+    candidate: Candidate,
+    dashboard_uid: str | None,
+    *,
+    impact: str | None = None,
+    user_id: str,
+    session_id_factory,
+    app_name: str = APP_NAME,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+) -> Finding:
+    """Investigate, backing off when the model is rate limited or busy.
+
+    A fresh session per attempt: a partially-consumed one would replay the
+    turns that already burned quota.
+    """
+    last: Exception | None = None
+    for attempt in range(max_retries + 1):
+        try:
+            return await investigate(
+                runner,
+                candidate,
+                dashboard_uid,
+                impact=impact,
+                user_id=user_id,
+                session_id=await session_id_factory(),
+                app_name=app_name,
+            )
+        except Exception as exc:  # noqa: BLE001 - re-raised below when fatal
+            last = exc
+            if attempt >= max_retries or not is_transient(exc):
+                raise
+            delay = retry_after_seconds(exc, attempt)
+            log.warning(
+                "%s: %s; retrying in %.0fs (attempt %d/%d)",
+                candidate.service,
+                "rate limited" if is_rate_limited(exc) else "model unavailable",
+                delay,
+                attempt + 1,
+                max_retries,
+            )
+            await asyncio.sleep(delay)
+    raise last  # pragma: no cover - loop always returns or raises
+
+
 async def investigate(
     runner,
     candidate: Candidate,
@@ -190,6 +264,8 @@ async def run_sweep(
     max_candidates: int = 5,
     state: StateStore | None = None,
     telemetry=None,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    pace_seconds: float = 0.0,
 ) -> SweepReport:
     """One scheduled run, end to end."""
     report = SweepReport(
@@ -233,12 +309,19 @@ async def run_sweep(
     try:
         root, _, _ = build_agents(toolset, agent_settings, telemetry=telemetry)
         runner = InMemoryRunner(agent=root, app_name=APP_NAME)
-        for candidate in candidates[:max_candidates]:
+        async def new_session() -> str:
             session = await runner.session_service.create_session(
                 app_name=APP_NAME, user_id="watchdog"
             )
+            return session.id
+
+        for index, candidate in enumerate(candidates[:max_candidates]):
+            if index and pace_seconds:
+                # Free-tier quota is per minute, so spacing candidates costs
+                # nothing but avoids walking straight back into the limit.
+                await asyncio.sleep(pace_seconds)
             try:
-                finding = await investigate(
+                finding = await investigate_with_retry(
                     runner,
                     candidate,
                     dashboards.get(candidate.service),
@@ -248,11 +331,12 @@ async def run_sweep(
                         else None
                     ),
                     user_id="watchdog",
-                    session_id=session.id,
+                    session_id_factory=new_session,
                     app_name=APP_NAME,
+                    max_retries=max_retries,
                 )
             except Exception as exc:  # noqa: BLE001 - one bad candidate must not kill the sweep
-                log.exception("investigation failed for %s", candidate.service)
+                log.warning("investigation failed for %s: %s", candidate.service, exc)
                 report.errors.append(f"{candidate.service}: {exc}")
                 continue
             if finding.dismissed:

@@ -26,8 +26,11 @@ from .mcp_client import RESPONDER_TOOLS, is_write_tool
 
 log = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "gemini-2.5-pro"
-FAST_MODEL = "gemini-2.5-flash"
+#: gemini-2.5-* is no longer served to new API keys -- it is still listed by
+#: models.list() but returns 404 on use, so verify with `slo-watchdog models`
+#: rather than trusting the listing.
+DEFAULT_MODEL = "gemini-3.8-flash"
+FAST_MODEL = "gemini-3.5-flash"
 
 
 INVESTIGATOR_INSTRUCTION = """\

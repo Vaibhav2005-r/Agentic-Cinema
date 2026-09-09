@@ -167,6 +167,8 @@ async def cmd_sweep(args: argparse.Namespace) -> int:
                 max_candidates=args.max_candidates,
                 state=state,
                 telemetry=telemetry,
+                max_retries=args.max_retries,
+                pace_seconds=args.pace,
             )
             telemetry.metrics.candidates_detected = report.candidates_detected
             telemetry.metrics.findings_confirmed = len(report.findings)
@@ -188,8 +190,12 @@ async def cmd_sweep(args: argparse.Namespace) -> int:
     print(f"incidents created    {report.incidents_created}")
     print(f"annotations created  {report.annotations_created}")
     print(f"mcp tool calls       {telemetry.metrics.mcp_tool_calls}")
-    if telemetry.metrics.mcp_tool_calls:
-        print(f"sweep cost           ${telemetry.metrics.sweep_cost_usd:.4f}")
+    cost = telemetry.metrics.sweep_cost_usd
+    if cost is not None:
+        print(f"sweep cost           ${cost:.4f}")
+    elif telemetry.metrics.prompt_tokens:
+        print(f"sweep cost           unpriced model ({args.model}); "
+              "add a rate to MODEL_PRICING")
 
     for finding in report.findings:
         print(f"\n  {finding.service}  {finding.burn_rate:.1f}x  "
@@ -287,6 +293,11 @@ def build_parser() -> argparse.ArgumentParser:
                        help="actually write incidents and annotations (default: dry run)")
     sweep.add_argument("--model", default=DEFAULT_MODEL)
     sweep.add_argument("--max-candidates", type=int, default=5)
+    sweep.add_argument("--max-retries", type=int, default=3,
+                       help="retries when the model is rate limited or busy")
+    sweep.add_argument("--pace", type=float, default=0.0, metavar="SECONDS",
+                       help="wait between candidates; free-tier Gemini allows "
+                            "5 requests/minute, so try 60 on a free key")
     sweep.add_argument("--include-paging", action="store_true",
                        help="also report burns that conventional alerts already catch")
     sweep.add_argument("--compress", type=float, metavar="N", default=None,

@@ -261,3 +261,138 @@ def test_the_report_counts_incidents_and_annotations():
     assert report.incidents_created == 1
     assert report.annotations_created == 2
     assert report.to_dict()["annotations_created"] == 2
+
+
+# --- surviving a free-tier quota ------------------------------------------
+#
+# Free-tier Gemini allows 5 requests per minute per model, and one agentic
+# investigation spends a request per tool-use turn. Without backoff the very
+# first candidate ends the sweep.
+
+
+RATE_LIMIT = (
+    "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'quota', "
+    "'details': [{'@type': 'type.googleapis.com/google.rpc.RetryInfo', "
+    "'retryDelay': '38s'}]}}"
+)
+
+
+def test_a_quota_error_is_recognised():
+    from slo_watchdog.sweep import is_rate_limited, is_transient
+
+    assert is_rate_limited(Exception(RATE_LIMIT))
+    assert is_transient(Exception(RATE_LIMIT))
+
+
+def test_a_busy_model_is_transient_but_not_rate_limited():
+    from slo_watchdog.sweep import is_rate_limited, is_transient
+
+    busy = Exception("503 UNAVAILABLE. This model is currently experiencing high demand.")
+    assert is_transient(busy)
+    assert not is_rate_limited(busy)
+
+
+@pytest.mark.parametrize(
+    "message", ["400 INVALID_ARGUMENT", "404 NOT_FOUND", "permission denied"]
+)
+def test_a_real_error_is_not_retried(message):
+    from slo_watchdog.sweep import is_transient
+
+    assert not is_transient(Exception(message))
+
+
+def test_the_delay_the_api_asked_for_is_honoured():
+    """Guessing a backoff when the server told us the number is careless."""
+    from slo_watchdog.sweep import retry_after_seconds
+
+    assert retry_after_seconds(Exception(RATE_LIMIT), 0) == pytest.approx(39.0)
+
+
+def test_backoff_grows_when_no_delay_is_given():
+    from slo_watchdog.sweep import FALLBACK_RETRY_SECONDS, retry_after_seconds
+
+    first = retry_after_seconds(Exception("503"), 0)
+    second = retry_after_seconds(Exception("503"), 1)
+    assert first == FALLBACK_RETRY_SECONDS
+    assert second > first
+
+
+class FlakyRunner(FakeRunner):
+    """Fails with `error` for the first `failures` attempts, then succeeds."""
+
+    def __init__(self, state, failures: int, error: str):
+        super().__init__(state)
+        self.remaining = failures
+        self.error = error
+        self.attempts = 0
+
+    async def run_async(self, *, user_id, session_id, new_message=None, **kwargs):
+        self.attempts += 1
+        if self.remaining > 0:
+            self.remaining -= 1
+            raise RuntimeError(self.error)
+        for _ in ():
+            yield None
+
+
+GOOD_STATE = {
+    "finding": {"service": "drm-license", "confirmed": True,
+                "hypothesis": "licence denials", "confidence": "high", "evidence": []}
+}
+
+
+async def test_a_rate_limited_investigation_is_retried(monkeypatch):
+    import slo_watchdog.sweep as sweep
+
+    slept: list[float] = []
+
+    async def no_wait(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr(sweep.asyncio, "sleep", no_wait)
+    runner = FlakyRunner(GOOD_STATE, failures=2, error=RATE_LIMIT)
+
+    finding = await sweep.investigate_with_retry(
+        runner, a_candidate(), None, user_id="u",
+        session_id_factory=lambda: _sid(), max_retries=3,
+    )
+    assert finding.hypothesis == "licence denials"
+    assert runner.attempts == 3
+    assert slept == [pytest.approx(39.0), pytest.approx(39.0)]
+
+
+async def test_retries_are_bounded(monkeypatch):
+    import slo_watchdog.sweep as sweep
+
+    waited: list[float] = []
+
+    async def no_wait(seconds):
+        waited.append(seconds)
+
+    monkeypatch.setattr(sweep.asyncio, "sleep", no_wait)
+    runner = FlakyRunner(GOOD_STATE, failures=99, error=RATE_LIMIT)
+
+    with pytest.raises(RuntimeError):
+        await sweep.investigate_with_retry(
+            runner, a_candidate(), None, user_id="u",
+            session_id_factory=lambda: _sid(), max_retries=2,
+        )
+    assert runner.attempts == 3  # the original plus two retries
+    assert len(waited) == 2      # and it backed off before each retry
+
+
+async def test_a_fatal_error_is_not_retried():
+    import slo_watchdog.sweep as sweep
+
+    runner = FlakyRunner(GOOD_STATE, failures=99, error="400 INVALID_ARGUMENT")
+    with pytest.raises(RuntimeError):
+        await sweep.investigate_with_retry(
+            runner, a_candidate(), None, user_id="u",
+            session_id_factory=lambda: _sid(), max_retries=3,
+        )
+    assert runner.attempts == 1
+
+
+async def _sid() -> str:
+    """Each attempt gets a fresh session; a used one replays spent turns."""
+    return "sess-new"
