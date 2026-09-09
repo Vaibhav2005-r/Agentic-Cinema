@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SLO Watchdog</title>
+<style>
+:root{
+  --bg:#0a0c10; --panel:#12151c; --panel-2:#171b24; --line:#242a36;
+  --ink:#e6e9ef; --muted:#8a93a6; --dim:#5d6678;
+  --accent:#f5a524; --accent-dim:#7a5414;
+  --ok:#2ecc8f; --warn:#f5a524; --bad:#ff5c5c; --info:#5b9bff;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(900px 500px at 15% -10%,rgba(245,165,36,.10),transparent 60%),
+             radial-gradient(700px 400px at 90% 0%,rgba(91,155,255,.07),transparent 55%)}
+.wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:28px 24px 72px}
+
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;
+  padding-bottom:20px;border-bottom:1px solid var(--line);margin-bottom:24px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:13px}
+.dot{width:11px;height:11px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 0 4px rgba(245,165,36,.15);animation:pulse 2.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+h1{font-size:19px;margin:0;letter-spacing:-.3px;font-weight:650}
+.tag{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px}
+.actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+
+button{font-family:inherit;font-size:13px;font-weight:550;padding:9px 15px;border-radius:8px;
+  border:1px solid var(--line);background:var(--panel-2);color:var(--ink);cursor:pointer;
+  transition:.16s ease;white-space:nowrap}
+button:hover:not(:disabled){border-color:#39414f;background:#1d222c;transform:translateY(-1px)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:linear-gradient(180deg,#f5a524,#e0930f);color:#1a1206;border-color:#c98510}
+button.primary:hover:not(:disabled){filter:brightness(1.08)}
+
+.pill{font-family:var(--mono);font-size:11px;padding:4px 9px;border-radius:20px;
+  border:1px solid var(--line);color:var(--muted);background:var(--panel)}
+.pill.ok{color:var(--ok);border-color:rgba(46,204,143,.35);background:rgba(46,204,143,.08)}
+.pill.bad{color:var(--bad);border-color:rgba(255,92,92,.35);background:rgba(255,92,92,.08)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px;margin-bottom:26px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px;
+  position:relative;overflow:hidden}
+.stat::after{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--dim)}
+.stat.hot::after{background:var(--accent)}
+.stat.good::after{background:var(--ok)}
+.stat .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:600}
+.stat .v{font-size:27px;font-weight:680;font-family:var(--mono);margin-top:5px;letter-spacing:-1px}
+.stat .s{font-size:11.5px;color:var(--dim);margin-top:2px}
+
+h2{font-size:12px;text-transform:uppercase;letter-spacing:1.1px;color:var(--muted);
+  margin:30px 0 13px;font-weight:650;display:flex;align-items:center;gap:9px}
+h2::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:17px 19px;
+  margin-bottom:12px;transition:.18s ease;position:relative;overflow:hidden}
+.card:hover{border-color:#333b4a;transform:translateY(-1px)}
+.card.finding{border-left:3px solid var(--accent)}
+.card.finding.paging{border-left-color:var(--bad)}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.svc{font-family:var(--mono);font-size:15.5px;font-weight:640;letter-spacing:-.2px}
+.spacer{flex:1}
+
+.chip{font-family:var(--mono);font-size:10.5px;padding:3px 8px;border-radius:5px;
+  background:var(--panel-2);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip.tier{color:var(--accent);border-color:var(--accent-dim);background:rgba(245,165,36,.10)}
+.chip.prov{color:var(--info);border-color:rgba(91,155,255,.3);background:rgba(91,155,255,.09)}
+.chip.hi{color:var(--ok);border-color:rgba(46,204,143,.3)}
+.chip.lo{color:var(--bad);border-color:rgba(255,92,92,.3)}
+
+.burn{font-family:var(--mono);font-size:25px;font-weight:700;letter-spacing:-1px;color:var(--accent)}
+.meter{height:5px;border-radius:3px;background:var(--panel-2);overflow:hidden;margin:13px 0 11px;
+  border:1px solid var(--line)}
+.meter i{display:block;height:100%;border-radius:3px;
+  background:linear-gradient(90deg,var(--accent),#ff8a3d);transition:width .8s cubic-bezier(.4,0,.2,1)}
+.impact{color:var(--ink);font-size:13.5px;padding:11px 13px;background:var(--panel-2);
+  border-radius:8px;border:1px solid var(--line);margin-top:4px}
+.impact b{color:var(--accent);font-family:var(--mono)}
+.note{font-size:11.5px;color:var(--dim);margin-top:8px;font-family:var(--mono)}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);
+  padding:8px 10px;border-bottom:1px solid var(--line);font-weight:640}
+td{padding:9px 10px;border-bottom:1px solid rgba(36,42,54,.55);font-family:var(--mono);font-size:12.5px}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+
+.sc{display:flex;align-items:center;gap:13px;padding:13px 15px;background:var(--panel);
+  border:1px solid var(--line);border-radius:11px;margin-bottom:9px;transition:.18s}
+.sc.on{border-color:var(--accent-dim);background:linear-gradient(90deg,rgba(245,165,36,.09),var(--panel) 55%)}
+.tog{width:42px;height:23px;border-radius:13px;background:var(--panel-2);border:1px solid var(--line);
+  position:relative;cursor:pointer;flex:0 0 auto;transition:.22s}
+.tog::after{content:"";position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;
+  background:var(--dim);transition:.22s}
+.tog.on{background:rgba(245,165,36,.25);border-color:var(--accent)}
+.tog.on::after{transform:translateX(19px);background:var(--accent)}
+
+.empty{text-align:center;padding:40px 20px;color:var(--dim);border:1px dashed var(--line);
+  border-radius:12px;font-size:13px}
+.err{background:rgba(255,92,92,.09);border:1px solid rgba(255,92,92,.3);color:#ffb3b3;
+  padding:12px 15px;border-radius:9px;font-family:var(--mono);font-size:12.5px;margin-bottom:14px}
+.spin{width:13px;height:13px;border:2px solid rgba(255,255,255,.2);border-top-color:var(--accent);
+  border-radius:50%;display:inline-block;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.fade{animation:fade .45s ease both}
+@keyframes fade{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+a{color:var(--info);text-decoration:none}
+a:hover{text-decoration:underline}
+footer{margin-top:36px;padding-top:18px;border-top:1px solid var(--line);
+  color:var(--dim);font-size:11.5px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <h1>SLO Watchdog</h1>
+        <div class="tag">reliability for the streaming pipeline &middot; via Grafana MCP</div>
+      </div>
+    </div>
+    <div class="actions">
+      <span id="health" class="pill">checking MCP&hellip;</span>
+      <button id="sweep" class="primary">Run sweep</button>
+    </div>
+  </header>
+
+  <div id="err" style="display:none"></div>
+
+  <div class="grid" id="stats"></div>
+
+  <h2>Findings</h2>
+  <div id="findings"><div class="empty">Run a sweep to see what nothing is paging on.</div></div>
+
+  <h2>Failure injection</h2>
+  <div id="scenarios"><div class="empty">Loading scenarios&hellip;</div></div>
+
+  <h2>Service inventory</h2>
+  <div id="inventory"><div class="empty">No inventory yet.</div></div>
+
+  <footer>
+    <span>Detection is deterministic Python. The agent reasons about meaning, not numbers.</span>
+    <span id="meta"></span>
+  </footer>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+  return r.json();
+}
+
+function showError(msg) {
+  const el = $("#err");
+  if (!msg) { el.style.display = "none"; return; }
+  el.className = "err"; el.style.display = "block"; el.textContent = msg;
+}
+
+async function health() {
+  try {
+    const h = await api("/api/health");
+    $("#health").className = "pill ok";
+    $("#health").textContent = `MCP connected · ${h.tools_advertised} tools · ${h.required_present}/${h.required_total} required`;
+  } catch {
+    $("#health").className = "pill bad";
+    $("#health").textContent = "MCP unreachable";
+  }
+}
+
+function stats(d) {
+  const inv = d.inventory, f = d.findings;
+  const watchdog = f.filter(x => x.watchdog_territory).length;
+  const perDay = f.reduce((a, x) => a + (x.per_day || 0), 0);
+  const cards = [
+    ["Services swept", inv.total, `${inv.defined} with SLOs · ${inv.provisional} provisional`, ""],
+    ["Findings", f.length, watchdog ? `${watchdog} nothing pages on` : "all clear", f.length ? "hot" : "good"],
+    ["Silently affected", perDay ? perDay.toLocaleString() : "0", "viewers or jobs per day", perDay ? "hot" : "good"],
+    ["Stayed quiet", d.quiet.length, "correctly not reported", "good"],
+    ["Sweep time", d.duration_s + "s", d.compressed ? "compressed windows" : "full windows", ""],
+  ];
+  $("#stats").innerHTML = cards.map(([k, v, s, c]) =>
+    `<div class="stat ${c} fade"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${esc(s)}</div></div>`).join("");
+}
+
+function findings(d) {
+  if (!d.findings.length) {
+    $("#findings").innerHTML = `<div class="empty">No burn-rate candidates — every service is inside its budget.<br>
+      <span style="color:var(--muted)">${d.quiet.length} services checked and correctly left alone.</span></div>`;
+    return;
+  }
+  $("#findings").innerHTML = d.findings.map(f => {
+    const pct = Math.min(100, (f.burn_rate / 14.4) * 100);
+    const budget = f.budget_is_estimate
+      ? `<div class="note">budget withheld — data covers only ${Math.round(f.budget_coverage * 100)}% of the SLO window</div>`
+      : `<div class="note">${f.budget_remaining_pct}% of error budget remaining${f.projected_exhaustion ? " · exhausts " + f.projected_exhaustion.slice(0, 10) : ""}</div>`;
+    return `<div class="card finding ${f.severity === "page" ? "paging" : ""} fade">
+      <div class="row">
+        <span class="svc">${esc(f.service)}</span>
+        <span class="chip tier">${esc(f.tier)}</span>
+        <span class="chip ${f.provisional ? "prov" : ""}">${f.provisional ? "provisional SLO" : "SLO " + f.slo_target}</span>
+        <span class="chip ${f.confidence === "high" ? "hi" : f.confidence === "low" ? "lo" : ""}">${esc(f.confidence)} confidence</span>
+        <span class="spacer"></span>
+        <span class="burn">${f.burn_rate}&times;</span>
+      </div>
+      <div class="meter"><i style="width:${pct}%"></i></div>
+      <div class="row" style="gap:7px;margin-bottom:9px">
+        <span class="chip">windows ${f.windows.join(" / ")}</span>
+        <span class="chip">threshold ${f.threshold}&times;</span>
+        <span class="chip">short ${f.short_burn_rate}&times;</span>
+        <span class="chip">${(f.requests || 0).toLocaleString()} ${esc(f.unit)}s</span>
+      </div>
+      ${f.impact ? `<div class="impact">${f.one_in ? `<b>1 in ${f.one_in.toLocaleString()}</b> ` : ""}${esc(f.impact.replace(/^1 in [\d,]+ /, ""))}</div>` : ""}
+      ${budget}
+    </div>`;
+  }).join("");
+}
+
+function inventory(d) {
+  const inv = d.inventory;
+  $("#inventory").innerHTML = `<div class="card fade" style="padding:6px 8px">
+    <table><thead><tr><th>Service</th><th>Signal</th><th>Objective</th><th>Source</th><th>Dashboard</th></tr></thead>
+    <tbody>${inv.services.map(s => `<tr>
+      <td>${esc(s.name)}</td>
+      <td style="color:var(--muted)">${esc(s.profile)}</td>
+      <td style="color:${s.provisional ? "var(--info)" : "var(--ok)"}">${s.provisional ? "provisional " : ""}${s.target}</td>
+      <td style="color:var(--dim)">${esc(s.source)}</td>
+      <td style="color:var(--dim)">${s.dashboard_uid ? esc(s.dashboard_uid) : "—"}</td>
+    </tr>`).join("")}</tbody></table></div>`;
+}
+
+async function scenarios() {
+  try {
+    const d = await api("/api/scenarios");
+    $("#scenarios").innerHTML = d.scenarios.map(s => `<div class="sc ${s.active ? "on" : ""}" data-name="${esc(s.name)}">
+      <div class="tog ${s.active ? "on" : ""}"></div>
+      <div style="flex:1;min-width:0">
+        <div class="row" style="gap:9px">
+          <span class="svc" style="font-size:13.5px">${esc(s.service)}</span>
+          <span class="chip tier">${s.burn}&times;</span>
+          <span class="chip">1 in ${s.one_in.toLocaleString()}</span>
+          ${s.duration_seconds ? `<span class="chip">recovers after ${Math.round(s.duration_seconds / 60)}m</span>` : ""}
+        </div>
+        <div style="color:var(--muted);font-size:12.5px;margin-top:3px">${esc(s.description)}</div>
+      </div>
+    </div>`).join("");
+    document.querySelectorAll(".sc").forEach(el => el.onclick = async () => {
+      const on = el.querySelector(".tog").classList.contains("on");
+      el.style.opacity = ".5";
+      try { await api(`/api/scenarios/${el.dataset.name}?enabled=${!on}`, {method: "POST"}); }
+      catch (e) { showError(e.message); }
+      el.style.opacity = "1";
+      scenarios();
+    });
+  } catch (e) { $("#scenarios").innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+async function sweep() {
+  const btn = $("#sweep");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> sweeping…';
+  showError(null);
+  try {
+    const d = await api("/api/sweep?compress=288&slo_window=2h", {method: "POST"});
+    stats(d); findings(d); inventory(d);
+    $("#meta").textContent = `${d.inventory.total} services · ${new Date(d.finished_at).toLocaleTimeString()} · ${d.grafana_url.replace(/^https?:\/\//, "")}`;
+  } catch (e) { showError("Sweep failed: " + e.message); }
+  btn.disabled = false;
+  btn.textContent = "Run sweep";
+}
+
+$("#sweep").onclick = sweep;
+health(); scenarios();
+api("/api/state").then(s => { if (s.last_sweep) { stats(s.last_sweep); findings(s.last_sweep); inventory(s.last_sweep); } });
+</script>
+</body>
+</html>

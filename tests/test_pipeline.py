@@ -55,11 +55,13 @@ class FakeGrafana:
         return None
 
     def _prometheus(self, expr: str):
-        if "grafana_slo" in expr:
-            return [
-                {"metric": {"service": svc}, "value": [1, str(target)]}
-                for svc, target in self.defined_slos.items()
-            ]
+        if expr == "grafana_slo_info":
+            return [{"metric": {"grafana_slo_uuid": f"u{i}",
+                                "grafana_slo_name": f"{svc} availability"}, "value": [1, "1"]}
+                    for i, svc in enumerate(self.defined_slos)]
+        if expr == "grafana_slo_objective":
+            return [{"metric": {"grafana_slo_uuid": f"u{i}"}, "value": [1, str(t)]}
+                    for i, t in enumerate(self.defined_slos.values())]
 
         match = re.search(r'service_name="([^"]+)"', expr)
         if not match:

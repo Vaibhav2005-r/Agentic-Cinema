@@ -253,6 +253,14 @@ async def cmd_chaos(args: argparse.Namespace) -> int:
     return 0
 
 
+async def cmd_serve(args: argparse.Namespace) -> int:
+    """Serve the console. Everything it shows comes from the same functions
+    the CLI calls, so the page cannot claim anything the terminal could not."""
+    from .web import serve
+
+    return await serve(args.host, args.port)
+
+
 async def cmd_state(args: argparse.Namespace) -> int:
     store = StateStore.load(Path(args.path))
     if args.clear:
@@ -330,6 +338,11 @@ def build_parser() -> argparse.ArgumentParser:
     chaos.add_argument("--reset", action="store_true", help="disable every scenario")
     chaos.add_argument("--list", action="store_true", help="describe the scenarios")
     chaos.set_defaults(func=cmd_chaos)
+
+    console = sub.add_parser("serve", help="run the live web console")
+    console.add_argument("--host", default="127.0.0.1")
+    console.add_argument("--port", type=int, default=8080)
+    console.set_defaults(func=cmd_serve)
 
     state = sub.add_parser("state", help="inspect the dedupe state store")
     state.add_argument("--path", default="state/findings.json")

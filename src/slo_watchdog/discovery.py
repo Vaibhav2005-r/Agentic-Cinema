@@ -199,49 +199,67 @@ async def list_services(
 async def find_defined_slos(caller, prometheus_uid: str) -> dict[str, float]:
     """Services with a real, human-defined SLO in Grafana SLO.
 
-    Grafana SLO compiles each objective into recording rules whose names carry
-    the objective's target, so the target is readable straight off Prometheus
-    without the SLO API.
+    Grafana SLO splits this across two recording rules and joins them on a
+    uuid: `grafana_slo_info` carries the SLO's name, `grafana_slo_objective`
+    carries its target. Neither alone names the service, so both are needed.
+
+    The service is taken from a `service` label when the SLO carries one, and
+    otherwise from the SLO's name -- "drm-license availability" -> drm-license.
     """
     targets: dict[str, float] = {}
-    try:
-        payload = await caller.call(
-            tools.LIST_METRIC_NAMES,
-            tools.metric_names(prometheus_uid, regex=f"{SLO_RULE_PREFIX}.*"),
-        )
-    except Exception as exc:  # noqa: BLE001
-        log.debug("SLO rule discovery failed: %s", exc)
-        return targets
 
-    rules = [str(m) for m in _as_list(payload) if isinstance(m, str)]
-    if not rules:
-        return targets
-
-    try:
-        series = await caller.call(
-            tools.QUERY_PROMETHEUS,
-            tools.instant_query(
-                prometheus_uid, f'{{__name__=~"{SLO_RULE_PREFIX}.*objective.*"}}'
-            ),
-        )
-    except Exception as exc:  # noqa: BLE001
-        log.debug("SLO objective query failed: %s", exc)
-        return targets
-
-    for sample in _as_list(series):
-        if not isinstance(sample, dict):
-            continue
-        metric = sample.get("metric") if isinstance(sample.get("metric"), dict) else sample
-        service = metric.get("service") or metric.get("service_name") or metric.get("job")
-        value = sample.get("value")
-        if isinstance(value, list) and len(value) == 2:
-            value = value[1]
+    async def series(expr: str) -> list[Any]:
         try:
-            target = float(value)  # type: ignore[arg-type]
+            return _as_list(
+                await caller.call(
+                    tools.QUERY_PROMETHEUS, tools.instant_query(prometheus_uid, expr)
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - a stack with no SLOs is normal
+            log.debug("SLO query %r failed: %s", expr, exc)
+            return []
+
+    def labels(sample: Any) -> dict[str, Any]:
+        if not isinstance(sample, dict):
+            return {}
+        metric = sample.get("metric")
+        return metric if isinstance(metric, dict) else sample
+
+    def value(sample: Any) -> float | None:
+        raw = sample.get("value") if isinstance(sample, dict) else None
+        if isinstance(raw, list) and len(raw) == 2:
+            raw = raw[1]
+        try:
+            return float(raw)  # type: ignore[arg-type]
         except (TypeError, ValueError):
+            return None
+
+    # uuid -> service name
+    names: dict[str, str] = {}
+    for sample in await series("grafana_slo_info"):
+        meta = labels(sample)
+        uuid = meta.get("grafana_slo_uuid")
+        if not uuid:
             continue
-        if service and 0.0 < target < 1.0:
-            targets[str(service)] = target
+        service = meta.get("service") or meta.get("service_name")
+        if not service:
+            name = str(meta.get("grafana_slo_name", ""))
+            # Strip a trailing SLI word, so "drm-license availability" resolves.
+            service = re.sub(
+                r"\s+(availability|latency|errors?|slo)$", "", name, flags=re.I
+            ).strip()
+        if service:
+            names[str(uuid)] = str(service)
+
+    # uuid -> target
+    for sample in await series("grafana_slo_objective"):
+        meta = labels(sample)
+        uuid = str(meta.get("grafana_slo_uuid", ""))
+        target = value(sample)
+        service = names.get(uuid)
+        if service and target is not None and 0.0 < target < 1.0:
+            targets[service] = target
+
     return targets
 
 

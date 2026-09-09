@@ -262,7 +262,19 @@ pages on them, which is the situation the watchdog was built to find. Budget
 roughly 50 active series for the four — each SLO compiles to 10–12 recording
 rules.
 
-### 5. Run
+### 5. The console
+
+```bash
+slo-watchdog serve          # http://127.0.0.1:8080
+```
+
+A live web console over the same functions the CLI calls, so it cannot show
+anything the terminal could not: MCP connection health, a one-click sweep,
+findings with audience impact, failure-injection toggles that write the
+simulator's scenario file, and the service inventory split by defined vs
+provisional SLO.
+
+### 6. Run
 
 ```bash
 slo-watchdog discover                  # what exists, what has an SLO
@@ -414,7 +426,9 @@ src/slo_watchdog/
   state.py         dedupe across scheduled runs
   chaos.py         failure injection, specified by target burn rate
   observability.py the reflexive layer
-  cli.py           doctor · discover · sweep · chaos · state
+  cli.py           doctor · discover · sweep · chaos · state · serve
+  web.py           the console's HTTP layer
+  static/          the console itself
 mediastack/        the synthetic streaming platform (no Docker)
 fixtures/          the recorded golden run
 tests/             247 tests (13 against a real mcp-grafana)

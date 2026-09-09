@@ -12,6 +12,8 @@ requires-python = ">=3.10"
 dependencies = [
     "google-adk[mcp]>=2.8.0",
     "python-dotenv>=1.0",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +39,9 @@ slo-watchdog = "slo_watchdog.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+slo_watchdog = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

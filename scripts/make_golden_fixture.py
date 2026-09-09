@@ -119,11 +119,15 @@ class GoldenStack:
         return None
 
     def _prometheus(self, expr: str):
-        if "grafana_slo" in expr:
-            return [
-                {"metric": {"service": svc}, "value": [1_757_000_000, str(target)]}
-                for svc, target in DEFINED_SLOS.items()
-            ]
+        if expr == "grafana_slo_info":
+            return [{"metric": {"grafana_slo_uuid": f"u{i}",
+                                "grafana_slo_name": f"{svc} availability"},
+                     "value": [1_757_000_000, "1"]}
+                    for i, svc in enumerate(DEFINED_SLOS)]
+        if expr == "grafana_slo_objective":
+            return [{"metric": {"grafana_slo_uuid": f"u{i}"},
+                     "value": [1_757_000_000, str(t)]}
+                    for i, t in enumerate(DEFINED_SLOS.values())]
 
         match = re.search(r'service_name="([^"]+)"', expr)
         if not match:
@@ -143,7 +147,13 @@ class GoldenStack:
         if expr.startswith("sum(increase(") and not any(
             k in expr for k in ("outcome", "status_code")
         ):
-            return [[1_757_000_000, str(profile["count"])]]
+            # Scale volume with the window, as a real counter does. A flat
+            # count makes every window look equally covered and the budget
+            # figure gets withheld for the wrong reason.
+            from slo_watchdog.burn_rate import parse_duration
+
+            share = parse_duration(window) / parse_duration("3d")
+            return [[1_757_000_000, str(round(profile["count"] * share))]]
 
         if window == "30d":
             burn = BUDGET_BURN_30D.get(service, profile["default"] * 0.4)
