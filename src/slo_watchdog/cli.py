@@ -202,8 +202,13 @@ async def cmd_sweep(args: argparse.Namespace) -> int:
               "add a rate to MODEL_PRICING")
 
     for finding in report.findings:
+        budget = (
+            "budget n/a"
+            if finding.budget_is_estimate
+            else f"{finding.budget_remaining_pct:.1f}% budget"
+        )
         print(f"\n  {finding.service}  {finding.burn_rate:.1f}x  "
-              f"{finding.budget_remaining_pct:.1f}% budget  ({finding.confidence})")
+              f"{budget}  ({finding.confidence})")
         if finding.hypothesis:
             print(f"    {finding.hypothesis[:300]}")
         for link in finding.grafana_links:

@@ -64,6 +64,8 @@ class Finding:
     grafana_links: list[str] = field(default_factory=list)
     incident_id: str | None = None
     annotation_created: bool = False
+    #: False when there was too little history to trust the budget figure.
+    budget_is_estimate: bool = False
     tier: str = ""
     dismissed: bool = False
     dismissal_reason: str | None = None
@@ -86,6 +88,7 @@ class Finding:
             provisional=candidate.provisional,
             confidence=candidate.confidence,
             tier=candidate.tier.name,
+            budget_is_estimate=candidate.budget_is_estimate,
         )
 
     def to_dict(self) -> dict[str, Any]:

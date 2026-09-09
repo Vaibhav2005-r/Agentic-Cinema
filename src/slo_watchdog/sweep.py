@@ -49,6 +49,31 @@ def _parse_agent_json(text: str) -> dict[str, Any] | None:
     return parsed if isinstance(parsed, dict) else None
 
 
+def _as_text(value: Any) -> str:
+    """Whatever the model returned, render it as a string.
+
+    Structured output is a request, not a guarantee: a live run put a dict in a
+    field the schema declares as a string, and slicing it for the report raised
+    `KeyError: slice(None, 300, None)`.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    if isinstance(value, dict):
+        # Prefer an obvious text field before falling back to JSON.
+        for key in ("text", "summary", "description", "value", "content"):
+            inner = value.get(key)
+            if isinstance(inner, str) and inner.strip():
+                return inner
+        return json.dumps(value, default=str)
+    if isinstance(value, (list, tuple)):
+        return " ".join(_as_text(v) for v in value if v is not None)
+    return str(value)
+
+
 def _apply_agent_result(finding: Finding, result: dict[str, Any]) -> Finding:
     """Merge the agent's judgement onto the detector's numbers.
 
@@ -57,9 +82,12 @@ def _apply_agent_result(finding: Finding, result: dict[str, Any]) -> Finding:
     """
     if not result.get("confirmed", True):
         finding.dismissed = True
-        finding.dismissal_reason = result.get("dismissal_reason") or "unspecified"
+        finding.dismissal_reason = _as_text(result.get("dismissal_reason")) or "unspecified"
 
-    finding.hypothesis = result.get("hypothesis", "")
+    # A schema constrains what we *ask* for, not what arrives. A live run
+    # returned a dict where the schema says string, and the report crashed
+    # formatting it. Coerce every narrative field rather than trusting it.
+    finding.hypothesis = _as_text(result.get("hypothesis"))
     confidence = result.get("confidence")
     if confidence in ("high", "medium", "low"):
         finding.confidence = confidence
@@ -69,9 +97,9 @@ def _apply_agent_result(finding: Finding, result: dict[str, Any]) -> Finding:
             continue
         finding.evidence.append(
             Evidence(
-                kind=item.get("kind", "metric"),
-                summary=item.get("summary", ""),
-                source=item.get("source", "unknown"),
+                kind=_as_text(item.get("kind")) or "metric",
+                summary=_as_text(item.get("summary")),
+                source=_as_text(item.get("source")) or "unknown",
             )
         )
     return finding
@@ -84,7 +112,7 @@ def _apply_responder_result(finding: Finding, result: dict[str, Any]) -> Finding
     finding without working deeplinks is not finished, so this is the step that
     makes `incidents_created` and `grafana_links` mean anything.
     """
-    incident_id = (result.get("incident_id") or "").strip()
+    incident_id = _as_text(result.get("incident_id")).strip()
     if incident_id:
         finding.incident_id = incident_id
 

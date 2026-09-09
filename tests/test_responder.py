@@ -22,6 +22,7 @@ from slo_watchdog.mcp_client import WRITE_TOOLS
 from slo_watchdog.models import Finding, SweepReport
 from slo_watchdog.observability import Telemetry
 from slo_watchdog.sweep import (
+    _apply_agent_result,
     _apply_responder_result,
     _as_payload,
     _session_state,
@@ -449,3 +450,85 @@ def test_refused_calls_are_not_counted_as_work_done():
 def test_the_default_budget_is_small_enough_for_a_free_key():
     """Five requests a minute; nine calls is roughly two minutes of work."""
     assert 5 <= DEFAULT_TOOL_BUDGET <= 15
+
+
+# --- the model does not honour the schema ---------------------------------
+#
+# A live run put a dict in `hypothesis`, which the schema declares as a string,
+# and the report crashed slicing it: KeyError: slice(None, 300, None).
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("plain text", "plain text"),
+        (None, ""),
+        (42, "42"),
+        (True, "True"),
+        ({"text": "nested text"}, "nested text"),
+        ({"summary": "a summary"}, "a summary"),
+        (["one", "two"], "one two"),
+    ],
+)
+def test_model_output_is_coerced_to_text(value, expected):
+    from slo_watchdog.sweep import _as_text
+
+    assert _as_text(value) == expected
+
+
+def test_an_unrecognised_dict_becomes_json_not_a_crash():
+    from slo_watchdog.sweep import _as_text
+
+    out = _as_text({"cause": "drm", "confidence": 0.9})
+    assert "drm" in out and isinstance(out, str)
+
+
+def test_a_dict_hypothesis_does_not_break_the_report():
+    """The exact shape that crashed the first successful live run."""
+    finding = a_finding()
+    _apply_agent_result(
+        finding,
+        {"confirmed": True, "confidence": "high",
+         "hypothesis": {"text": "licence denials from an expired policy"},
+         "evidence": []},
+    )
+    assert isinstance(finding.hypothesis, str)
+    assert finding.hypothesis[:300]  # the operation that raised
+
+
+def test_malformed_evidence_entries_are_coerced_too():
+    finding = a_finding()
+    _apply_agent_result(
+        finding,
+        {"confirmed": True, "hypothesis": "h", "confidence": "low",
+         "evidence": [{"kind": None, "summary": {"text": "timeouts"}, "source": 7}]},
+    )
+    ev = finding.evidence[0]
+    assert (ev.kind, ev.summary, ev.source) == ("metric", "timeouts", "7")
+
+
+def test_a_non_string_incident_id_does_not_crash_the_responder():
+    finding = a_finding()
+    _apply_responder_result(finding, {"incident_id": 12345, "actions_taken": []})
+    assert finding.incident_id == "12345"
+
+
+def test_a_dict_dismissal_reason_is_readable():
+    finding = a_finding()
+    _apply_agent_result(
+        finding,
+        {"confirmed": False, "dismissal_reason": {"text": "deploy window"},
+         "hypothesis": "", "confidence": "low", "evidence": []},
+    )
+    assert finding.dismissal_reason == "deploy window"
+
+
+def test_the_finding_inherits_the_budget_caveat():
+    """Every renderer must agree about whether the budget can be quoted."""
+    from slo_watchdog.burn_rate import compress, parse_duration, required_windows
+
+    windows = required_windows(compress(288), "2h")
+    samples = {w: RatioSample(w, 0.0016, request_count=19_000) for w in windows}
+    candidate = evaluate("drm-license", samples, 0.999, tiers=compress(288),
+                         slo_window=parse_duration("2h"))
+    assert Finding.from_candidate(candidate).budget_is_estimate
