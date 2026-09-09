@@ -138,4 +138,5 @@ async def test_the_read_tools_the_sweep_needs_are_not_gated(advertised):
                  tools.QUERY_LOKI_PATTERNS, tools.LIST_DATASOURCES,
                  tools.SEARCH_DASHBOARDS, tools.GENERATE_DEEPLINK,
                  tools.GET_PANEL_QUERIES):
+        assert name in advertised, f"{name} is not advertised by the server"
         assert not is_write_tool(name), f"{name} must stay callable in a dry run"
