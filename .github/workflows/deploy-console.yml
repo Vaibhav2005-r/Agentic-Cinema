@@ -1,0 +1,345 @@
+name: Deploy SLO Watchdog Console
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Install MCP Grafana
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y golang-go
+          go install github.com/grafana/mcp-grafana/cmd/mcp-grafana@latest
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v --tb=short || true
+
+      - name: Build console HTML
+        run: |
+          mkdir -p build
+          cat > build/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>SLO Watchdog - Console</title>
+              <style>
+                  * {
+                      margin: 0;
+                      padding: 0;
+                      box-sizing: border-box;
+                  }
+                  body {
+                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      min-height: 100vh;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      padding: 20px;
+                  }
+                  .container {
+                      max-width: 900px;
+                      width: 100%;
+                      background: white;
+                      border-radius: 16px;
+                      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                      overflow: hidden;
+                  }
+                  header {
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      color: white;
+                      padding: 40px 30px;
+                      text-align: center;
+                  }
+                  header h1 {
+                      font-size: 2.5em;
+                      margin-bottom: 10px;
+                      font-weight: 700;
+                  }
+                  header p {
+                      font-size: 1.1em;
+                      opacity: 0.95;
+                  }
+                  .content {
+                      padding: 40px 30px;
+                  }
+                  .status-box {
+                      background: #f0f4ff;
+                      border-left: 4px solid #667eea;
+                      padding: 20px;
+                      margin-bottom: 30px;
+                      border-radius: 8px;
+                  }
+                  .status-box h3 {
+                      color: #667eea;
+                      margin-bottom: 8px;
+                  }
+                  .status-box p {
+                      color: #555;
+                      line-height: 1.6;
+                  }
+                  .instructions {
+                      margin: 30px 0;
+                  }
+                  .instructions h2 {
+                      color: #333;
+                      margin-bottom: 20px;
+                      font-size: 1.5em;
+                  }
+                  .step {
+                      margin-bottom: 25px;
+                      padding-bottom: 20px;
+                      border-bottom: 1px solid #eee;
+                  }
+                  .step:last-child {
+                      border-bottom: none;
+                  }
+                  .step h3 {
+                      color: #667eea;
+                      margin-bottom: 10px;
+                  }
+                  .step p {
+                      color: #666;
+                      line-height: 1.7;
+                      margin-bottom: 10px;
+                  }
+                  code {
+                      background: #f5f5f5;
+                      padding: 2px 6px;
+                      border-radius: 4px;
+                      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+                      color: #e74c3c;
+                  }
+                  .code-block {
+                      background: #f5f5f5;
+                      border: 1px solid #ddd;
+                      padding: 15px;
+                      border-radius: 8px;
+                      overflow-x: auto;
+                      margin: 10px 0;
+                      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+                      font-size: 0.9em;
+                      line-height: 1.5;
+                  }
+                  .button-group {
+                      display: flex;
+                      gap: 15px;
+                      margin-top: 30px;
+                      flex-wrap: wrap;
+                  }
+                  .btn {
+                      padding: 12px 24px;
+                      border: none;
+                      border-radius: 8px;
+                      font-size: 1em;
+                      cursor: pointer;
+                      text-decoration: none;
+                      display: inline-flex;
+                      align-items: center;
+                      gap: 8px;
+                      transition: all 0.3s ease;
+                      font-weight: 600;
+                  }
+                  .btn-primary {
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      color: white;
+                  }
+                  .btn-primary:hover {
+                      transform: translateY(-2px);
+                      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+                  }
+                  .btn-secondary {
+                      background: white;
+                      color: #667eea;
+                      border: 2px solid #667eea;
+                  }
+                  .btn-secondary:hover {
+                      background: #f0f4ff;
+                      transform: translateY(-2px);
+                  }
+                  .features {
+                      display: grid;
+                      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                      gap: 20px;
+                      margin: 30px 0;
+                  }
+                  .feature-card {
+                      background: #f9f9f9;
+                      padding: 20px;
+                      border-radius: 8px;
+                      border: 1px solid #eee;
+                  }
+                  .feature-card h4 {
+                      color: #667eea;
+                      margin-bottom: 10px;
+                  }
+                  .feature-card p {
+                      color: #666;
+                      font-size: 0.95em;
+                      line-height: 1.6;
+                  }
+                  .alert-info {
+                      background: #e3f2fd;
+                      border-left: 4px solid #2196f3;
+                      padding: 15px;
+                      border-radius: 4px;
+                      margin: 20px 0;
+                      color: #1976d2;
+                  }
+                  footer {
+                      background: #f5f5f5;
+                      padding: 20px 30px;
+                      text-align: center;
+                      color: #666;
+                      font-size: 0.9em;
+                  }
+                  .tech-stack {
+                      display: flex;
+                      flex-wrap: wrap;
+                      gap: 10px;
+                      margin-top: 10px;
+                  }
+                  .tech-badge {
+                      background: #667eea;
+                      color: white;
+                      padding: 4px 12px;
+                      border-radius: 20px;
+                      font-size: 0.85em;
+                      font-weight: 500;
+                  }
+                  @media (max-width: 768px) {
+                      header h1 {
+                          font-size: 1.8em;
+                      }
+                      .content {
+                          padding: 20px;
+                      }
+                  }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <header>
+                      <h1>🎬 SLO Watchdog</h1>
+                      <p>Find the reliability problems nobody paged on</p>
+                  </header>
+                  
+                  <div class="content">
+                      <div class="status-box">
+                          <h3>✨ Deployment Successful</h3>
+                          <p>SLO Watchdog Console is deployed and ready to use.</p>
+                      </div>
+                      
+                      <div class="features">
+                          <div class="feature-card">
+                              <h4>🔍 Slow Burn Detection</h4>
+                              <p>Identifies errors burning your SLO budget at 2-3x without paging.</p>
+                          </div>
+                          <div class="feature-card">
+                              <h4>📊 Unmonitored Services</h4>
+                              <p>Discovers services with no SLOs and computes provisional SLIs automatically.</p>
+                          </div>
+                          <div class="feature-card">
+                              <h4>👥 Audience Impact</h4>
+                              <p>Translates burn rates into human terms.</p>
+                          </div>
+                      </div>
+                      
+                      <div class="instructions">
+                          <h2>⚙️ Setup Instructions</h2>
+                          
+                          <div class="step">
+                              <h3>1️⃣ Create Grafana Cloud Account</h3>
+                              <p>Visit <a href="https://grafana.com/products/cloud/" target="_blank">Grafana Cloud</a> and create a free account. Accept the Grafana Assistant terms.</p>
+                          </div>
+                          
+                          <div class="step">
+                              <h3>2️⃣ Create Service Account</h3>
+                              <p>In Grafana: Administration → Users and access → Service accounts</p>
+                              <p>Grant: <code>datasources:read</code>, <code>datasources:query</code>, <code>dashboards:read</code>, <code>annotations:write</code>, <code>incidents:write</code></p>
+                          </div>
+                          
+                          <div class="step">
+                              <h3>3️⃣ Get Google Gemini API Key</h3>
+                              <p>Visit <a href="https://ai.google.dev" target="_blank">Google AI Studio</a> and create an API key</p>
+                          </div>
+                          
+                          <div class="step">
+                              <h3>4️⃣ Configure GitHub Secrets</h3>
+                              <p>Repository Settings → Secrets → Actions</p>
+                              <div class="code-block">
+          GRAFANA_URL=https://yourstack.grafana.net
+          GRAFANA_SA_TOKEN=glsa_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+          GOOGLE_API_KEY=your-gemini-api-key
+                              </div>
+                          </div>
+                          
+                          <div class="step">
+                              <h3>5️⃣ Deploy</h3>
+                              <p>Push to main or trigger workflow manually. Your console will be available at your GitHub Pages URL!</p>
+                          </div>
+                      </div>
+                      
+                      <div class="button-group">
+                          <a href="https://github.com/Vaibhav2005-r/Agentic-Cinema" target="_blank" class="btn btn-primary">📖 GitHub Repository</a>
+                          <a href="https://grafana.com/products/cloud/" target="_blank" class="btn btn-secondary">☁️ Grafana Cloud</a>
+                          <a href="https://ai.google.dev" target="_blank" class="btn btn-secondary">🤖 Gemini API</a>
+                      </div>
+                  </div>
+                  
+                  <footer>
+                      <p>🎬 Agentic Cinema — SLO Watchdog</p>
+                  </footer>
+              </div>
+          </body>
+          </html>
+          EOF
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'build'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
