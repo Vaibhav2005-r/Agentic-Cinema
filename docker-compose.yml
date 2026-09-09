@@ -1,0 +1,19 @@
+services:
+  slo-watchdog:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - GRAFANA_URL=${GRAFANA_URL}
+      - GRAFANA_SA_TOKEN=${GRAFANA_SA_TOKEN}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
