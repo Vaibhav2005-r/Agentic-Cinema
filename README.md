@@ -168,7 +168,7 @@ So every ratio, threshold, window and impact figure is computed in Python from
 raw PromQL. The agent receives a structured candidate and reasons about
 **meaning, not numbers**.
 
-- **It is testable.** 209 tests, 13 of them against the real MCP server binary.
+- **It is testable.** 237 tests, 13 of them against the real MCP server binary.
 - **It is cheap.** Passing a computed candidate instead of raw time series cuts
   token cost by roughly an order of magnitude — a full sweep costs about **nine cents**.
 - **It cannot lie about the numbers.** `_apply_agent_result` merges only
@@ -248,6 +248,32 @@ slo-watchdog sweep                     # ranked candidates, no LLM
 slo-watchdog sweep --agent             # the full run, dry-run by default
 slo-watchdog sweep --agent --execute   # actually file incidents and annotations
 slo-watchdog sweep --record fixtures/my-run.json
+```
+
+**Demoing against a stack you started an hour ago.** The watchdog tier reads
+3d/6h windows, so a fresh stack has no history to detect anything in.
+`--compress N` scales every window down — `288` turns 3d/6h into 15m/75s:
+
+```bash
+slo-watchdog sweep --compress 288 --slo-window 2h
+```
+
+Burn rate is a *rate*, so the thresholds and the arithmetic are untouched; only
+the history required changes. Windows are floored at 60s, below which a window
+holds too few points to mean anything.
+
+**Budget figures are withheld when the history is thin.** A stack that started
+an hour ago answers `increase(...[30d])` with an hour of data and no error —
+the ratio is right, but a budget built on it is not. Extrapolating and printing
+"0% of your error budget remains" reads as a catastrophe rather than as thin
+history, so the sweep compares observed volume against a fully-covered window
+and says so instead:
+
+```
+drm-license   watchdog   1.8x  15m/75s    --   high   provisional
+    -> 1 in 545 license requests fail; about 5,814 a day -- a viewer was
+       refused a licence for content they paid for
+       budget withheld: data covers only 13% of the SLO window
 ```
 
 Writes are **off by default**. `--dry-run` is not a prompt instruction — it is a
@@ -357,7 +383,7 @@ src/slo_watchdog/
   cli.py           doctor · discover · sweep · chaos · state
 mediastack/        the synthetic streaming platform (no Docker)
 fixtures/          the recorded golden run
-tests/             209 tests (13 against a real mcp-grafana)
+tests/             237 tests (13 against a real mcp-grafana)
 ```
 
 ## Licence

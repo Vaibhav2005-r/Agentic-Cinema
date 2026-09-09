@@ -186,12 +186,16 @@ def describe(candidates: Iterable[Candidate], inventory: Inventory | None = None
     )
     lines = [header, "-" * len(header)]
     for c in rows:
+        # An exhaustion date extrapolated from an hour of history is a guess
+        # wearing a date's clothes, so both it and the budget are withheld
+        # until the SLO window is actually covered.
         exhaustion = ""
-        if c.projected_exhaustion:
+        if c.projected_exhaustion and not c.budget_is_estimate:
             exhaustion = f"  exhausts {c.projected_exhaustion:%Y-%m-%d}"
+        budget = "      --" if c.budget_is_estimate else f"{c.budget_remaining_pct:>7.1f}%"
         lines.append(
             f"{c.service:<28} {c.tier.name:<11} {c.burn_rate:>5.1f}x "
-            f"{'/'.join(c.windows):<10} {c.budget_remaining_pct:>7.1f}% "
+            f"{'/'.join(c.windows):<10} {budget} "
             f"{c.confidence:<7} "
             f"{'provisional' if c.provisional else 'defined'}"
             f"{exhaustion}"
@@ -199,4 +203,9 @@ def describe(candidates: Iterable[Candidate], inventory: Inventory | None = None
         profile = profiles.get(c.service)
         if profile is not None:
             lines.append(f"    -> {describe_impact(c, profile).sentence()}")
+        if c.budget_is_estimate:
+            lines.append(
+                f"       budget withheld: data covers only "
+                f"{c.budget_coverage:.0%} of the SLO window"
+            )
     return "\n".join(lines)

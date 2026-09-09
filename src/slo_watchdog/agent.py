@@ -253,10 +253,22 @@ def candidate_briefing(
         "burn_rate": round(candidate.burn_rate, 3),
         "short_window_burn_rate": round(candidate.short_burn_rate, 3),
         "windows": {"long": candidate.windows[0], "short": candidate.windows[1]},
-        "budget_remaining_pct": round(candidate.budget_remaining_pct, 2),
+        # Withheld rather than guessed: the agent must not narrate a budget
+        # figure the detector does not trust.
+        "budget_remaining_pct": (
+            None
+            if candidate.budget_is_estimate
+            else round(candidate.budget_remaining_pct, 2)
+        ),
+        "budget_unavailable_reason": (
+            f"only {candidate.budget_coverage:.0%} of the SLO window has data; "
+            "do not state a budget or exhaustion date"
+            if candidate.budget_is_estimate
+            else None
+        ),
         "projected_exhaustion": (
             candidate.projected_exhaustion.isoformat()
-            if candidate.projected_exhaustion
+            if candidate.projected_exhaustion and not candidate.budget_is_estimate
             else None
         ),
         "statistical_confidence": candidate.confidence,

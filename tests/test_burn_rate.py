@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -11,6 +12,7 @@ from slo_watchdog.burn_rate import (
     MIN_WINDOW_SECONDS,
     REQUIRED_WINDOWS,
     TIERS,
+    budget_coverage,
     compress,
     required_windows,
     RatioSample,
@@ -410,3 +412,89 @@ def test_a_compressed_table_still_detects_the_same_burn() -> None:
 
 def test_required_windows_follows_the_tier_table() -> None:
     assert required_windows(compress(288), "2h") == ("1m", "75s", "5m", "15m", "2h")
+
+
+# --------------------------------------------------------------------------
+# budget coverage: a young stack must not claim a month of history
+# --------------------------------------------------------------------------
+
+
+def test_coverage_is_full_when_the_window_is_covered() -> None:
+    samples = {
+        "30d": RatioSample("30d", 0.0016, request_count=2_880_000),
+        "3d": RatioSample("3d", 0.0016, request_count=288_000),
+    }
+    assert budget_coverage(samples, "30d", "3d") == pytest.approx(1.0)
+
+
+def test_coverage_is_low_when_the_data_is_younger_than_the_window() -> None:
+    """The live case: `increase(...[2h])` and `[15m]` return the same total."""
+    samples = {
+        "2h": RatioSample("2h", 0.0016, request_count=19_000),
+        "15m": RatioSample("15m", 0.0016, request_count=18_955),
+    }
+    assert budget_coverage(samples, "2h", "15m") == pytest.approx(0.125, abs=0.01)
+
+
+def test_coverage_is_assumed_full_when_volume_is_unknown() -> None:
+    """Never withhold a figure just because the count is missing."""
+    samples = {
+        "30d": RatioSample("30d", 0.0016, request_count=None),
+        "3d": RatioSample("3d", 0.0016, request_count=None),
+    }
+    assert budget_coverage(samples, "30d", "3d") == 1.0
+    assert budget_coverage({}, "30d", "3d") == 1.0
+
+
+def test_a_thin_stack_marks_the_budget_as_an_estimate() -> None:
+    windows = required_windows(compress(288), "2h")
+    samples = {
+        w: RatioSample(w, ratio_for_burn(1.6), request_count=19_000) for w in windows
+    }
+    result = evaluate("drm-license", samples, SLO, tiers=compress(288),
+                      slo_window=parse_duration("2h"), now=NOW)
+    assert result is not None
+    assert result.budget_is_estimate
+    assert result.budget_coverage < 0.5
+
+
+def test_a_covered_stack_reports_a_real_budget() -> None:
+    samples = {
+        w: RatioSample(w, ratio_for_burn(2.0), request_count=500_000)
+        for w in REQUIRED_WINDOWS
+    }
+    samples["30d"] = RatioSample("30d", ratio_for_burn(0.6), request_count=5_000_000)
+    result = evaluate("drm-license", samples, SLO, now=NOW)
+    assert result is not None
+    assert not result.budget_is_estimate
+    assert result.budget_remaining_pct == pytest.approx(40.0)
+
+
+def test_the_table_withholds_a_budget_it_cannot_stand_behind() -> None:
+    from slo_watchdog.detect import describe
+
+    windows = required_windows(compress(288), "2h")
+    samples = {
+        w: RatioSample(w, ratio_for_burn(1.6), request_count=19_000) for w in windows
+    }
+    candidate = evaluate("drm-license", samples, SLO, tiers=compress(288),
+                         slo_window=parse_duration("2h"), now=NOW)
+    text = describe([candidate])
+    assert "budget withheld" in text
+    assert "0.0%" not in text
+    assert "exhausts" not in text
+
+
+def test_the_agent_is_told_why_the_budget_is_missing() -> None:
+    from slo_watchdog.agent import candidate_briefing
+
+    windows = required_windows(compress(288), "2h")
+    samples = {
+        w: RatioSample(w, ratio_for_burn(1.6), request_count=19_000) for w in windows
+    }
+    candidate = evaluate("drm-license", samples, SLO, tiers=compress(288),
+                         slo_window=parse_duration("2h"), now=NOW)
+    payload = json.loads(candidate_briefing(candidate).split("\n\n", 1)[1])
+    assert payload["budget_remaining_pct"] is None
+    assert payload["projected_exhaustion"] is None
+    assert "do not state a budget" in payload["budget_unavailable_reason"]

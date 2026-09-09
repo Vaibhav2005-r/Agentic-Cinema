@@ -214,6 +214,35 @@ def classify(
     return None
 
 
+def budget_coverage(
+    samples: Mapping[str, "RatioSample"], slo_window: str, long_window: str
+) -> float:
+    """How much of the SLO window the data actually spans, in 0..1.
+
+    A stack that started an hour ago answers `increase(...[30d])` with one hour
+    of data and no error. The ratio is then correct but the *budget* built on it
+    is not: extrapolating an hour to a month and reporting "0% of your error
+    budget remains" reads as a catastrophe rather than as thin history.
+
+    Compares observed volume against what a fully covered window would hold.
+    """
+    slo_sample = samples.get(slo_window)
+    long_sample = samples.get(long_window)
+    if slo_sample is None or long_sample is None:
+        return 1.0
+    if not slo_sample.request_count or not long_sample.request_count:
+        return 1.0
+    expected = parse_duration(slo_window) / parse_duration(long_window)
+    if expected <= 0:
+        return 1.0
+    observed = slo_sample.request_count / long_sample.request_count
+    return max(0.0, min(1.0, observed / expected))
+
+
+#: Below this, the budget figure is an extrapolation rather than a measurement.
+MIN_BUDGET_COVERAGE = 0.5
+
+
 @dataclass
 class Candidate:
     """A deterministic detection, handed to the agent for judgement."""
@@ -231,6 +260,13 @@ class Candidate:
     confidence: Confidence
     request_count: float | None = None
     samples: dict[str, RatioSample] = field(default_factory=dict)
+    #: Fraction of the SLO window the data actually covers.
+    budget_coverage: float = 1.0
+
+    @property
+    def budget_is_estimate(self) -> bool:
+        """True when there is too little history to trust budget_remaining."""
+        return self.budget_coverage < MIN_BUDGET_COVERAGE
 
     @property
     def severity(self) -> Severity:
@@ -298,6 +334,9 @@ def evaluate(
 
     long_sample = samples[fired.long_window]
     threshold_ratio = fired.threshold * (1.0 - slo_target)
+    coverage = budget_coverage(
+        samples, _format_seconds(slo_window.total_seconds()), fired.long_window
+    )
 
     return Candidate(
         service=service,
@@ -315,6 +354,7 @@ def evaluate(
         ),
         request_count=long_sample.request_count,
         samples=dict(samples),
+        budget_coverage=coverage,
     )
 
 
