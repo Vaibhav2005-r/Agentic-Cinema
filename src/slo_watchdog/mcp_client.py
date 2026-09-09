@@ -43,13 +43,10 @@ ENABLED_TOOL_CATEGORIES = (
     "incident,annotations,navigation,rendering,alerting"
 )
 
-#: Tools mcp-grafana classifies as writes. We do *not* pass --disable-write,
-#: because stages 4 and 6 need three of these; the service account's RBAC is
-#: what bounds the blast radius instead.
-#:
-#: `find_error_pattern_logs` is a write tool despite reading logs -- it creates
-#: a Sift investigation. Running the investigator read-only therefore costs you
-#: log-pattern analysis, so `--dry-run` gates on our side, not the server's.
+#: Tools we know mutate state. Enumerating is not enough on its own -- the
+#: server advertises 44 tools and any new mutating one would slip past a fixed
+#: list -- so `is_write_tool` also matches mutating verbs. Deny-by-shape beats
+#: deny-by-list when the list is someone else's to change.
 WRITE_TOOLS = frozenset(
     {
         "create_incident",
@@ -58,10 +55,31 @@ WRITE_TOOLS = frozenset(
         "create_annotation",
         "update_annotation",
         "delete_annotation",
+        "create_folder",
+        "update_dashboard",
+        "create_datasource",
+        "update_datasource",
+        # Sift tools read logs but create an investigation to do it.
         "find_error_pattern_logs",
         "find_slow_requests",
     }
 )
+
+#: Any tool whose name starts with one of these mutates, by mcp-grafana's own
+#: naming convention. `alerting_manage_*` covers rules, silences and routing.
+WRITE_PREFIXES: tuple[str, ...] = (
+    "create_",
+    "update_",
+    "delete_",
+    "add_",
+    "alerting_manage_",
+)
+
+
+def is_write_tool(name: str) -> bool:
+    """True when calling this tool could change the user's Grafana."""
+    return name in WRITE_TOOLS or name.startswith(WRITE_PREFIXES)
+
 
 #: Tools the responder is allowed to call. Anything else it attempts is a bug.
 RESPONDER_TOOLS = frozenset(
@@ -220,7 +238,7 @@ def build_toolset(config: GrafanaConfig, read_only: bool = False):
     config.check_binary()
     tool_filter = None
     if read_only:
-        tool_filter = (lambda tool, ctx=None: tool.name not in WRITE_TOOLS)
+        tool_filter = (lambda tool, ctx=None: not is_write_tool(tool.name))
 
     return McpToolset(
         connection_params=StdioConnectionParams(

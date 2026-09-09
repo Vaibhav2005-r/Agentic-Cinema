@@ -168,7 +168,7 @@ So every ratio, threshold, window and impact figure is computed in Python from
 raw PromQL. The agent receives a structured candidate and reasons about
 **meaning, not numbers**.
 
-- **It is testable.** 188 tests, no network, no tokens.
+- **It is testable.** 209 tests, 13 of them against the real MCP server binary.
 - **It is cheap.** Passing a computed candidate instead of raw time series cuts
   token cost by roughly an order of magnitude — a full sweep costs about **nine cents**.
 - **It cannot lie about the numbers.** `_apply_agent_result` merges only
@@ -197,9 +197,20 @@ cp .env.example .env      # fill in GRAFANA_URL and GRAFANA_SA_TOKEN
 ### 2. The MCP server
 
 ```bash
-go install github.com/grafana/mcp-grafana/cmd/mcp-grafana@latest
-slo-watchdog doctor       # verify before anything else
+brew install mcp-grafana        # or: go install github.com/grafana/mcp-grafana/cmd/mcp-grafana@latest
+slo-watchdog doctor             # verify before anything else
 ```
+
+With the binary installed you can also run the integration suite, which needs
+**no Grafana account** — mcp-grafana registers its tools statically, so it
+advertises all 44 before any upstream call succeeds:
+
+```bash
+pytest tests/test_mcp_integration.py
+```
+
+That is what verifies every tool name and every argument shape this project
+sends against the server's own schema, rather than against documentation.
 
 ### 3. The workload
 
@@ -263,6 +274,13 @@ the SDK silently discards everything. And **install `agento11y` alone**, never
 
 Five things cost real time to discover. They are fixed here; the documentation
 does not mention them.
+
+**0. The dry-run gate must deny by shape, not by list.** The server advertises
+44 tools, eight of which mutate — including `update_dashboard`,
+`create_datasource` and `alerting_manage_rules`. An enumerated write-list looks
+complete and silently misses whatever the next release adds, so `is_write_tool`
+matches mutating verb prefixes as well as known names. An integration test
+asserts that every mutating tool the server advertises is caught.
 
 **1. `query_prometheus` requires `endTime`, even for an instant query.** Omit it
 and every query fails — which takes the entire detection engine with it. The
@@ -339,7 +357,7 @@ src/slo_watchdog/
   cli.py           doctor · discover · sweep · chaos · state
 mediastack/        the synthetic streaming platform (no Docker)
 fixtures/          the recorded golden run
-tests/             188 tests, offline
+tests/             209 tests (13 against a real mcp-grafana)
 ```
 
 ## Licence

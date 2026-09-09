@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .burn_rate import Candidate
-from .mcp_client import RESPONDER_TOOLS, WRITE_TOOLS
+from .mcp_client import RESPONDER_TOOLS, is_write_tool
 
 log = logging.getLogger(__name__)
 
@@ -202,7 +202,7 @@ def block_writes_callback(tool, args=None, tool_context=None, **kwargs):
     by keyword -- the parameter names here are part of that contract.
     """
     name = getattr(tool, "name", "")
-    if name in WRITE_TOOLS:
+    if is_write_tool(name):
         log.info("dry-run: suppressed write tool %s", name)
         return {
             "status": "skipped",

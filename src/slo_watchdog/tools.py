@@ -25,7 +25,10 @@ SEARCH_DASHBOARDS = "search_dashboards"
 # --- stage 2-3: detect and triage ------------------------------------------
 QUERY_PROMETHEUS = "query_prometheus"
 GET_PANEL_QUERIES = "get_dashboard_panel_queries"
-LIST_ALERT_RULES = "list_alert_rules"
+# Alerting is consolidated into three verb-style tools rather than list_*.
+# Reading existing rules is how the investigator confirms its own premise:
+# that nothing is currently set to page on this service.
+MANAGE_ALERT_RULES = "alerting_manage_rules"
 
 # --- stage 4: correlate ----------------------------------------------------
 QUERY_LOKI_LOGS = "query_loki_logs"
@@ -59,7 +62,7 @@ REQUIRED_TOOLS: tuple[str, ...] = (
 OPTIONAL_TOOLS: tuple[str, ...] = (
     FIND_ERROR_PATTERN_LOGS,
     GET_PANEL_IMAGE,
-    LIST_ALERT_RULES,
+    MANAGE_ALERT_RULES,
     ADD_ACTIVITY_TO_INCIDENT,
 )
 
