@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import pytest
 
 from slo_watchdog.agent import (
+    DEFAULT_TOOL_BUDGET,
     RESPONDER_SCHEMA,
     block_writes_callback,
     make_tool_callback,
@@ -396,3 +397,55 @@ async def test_a_fatal_error_is_not_retried():
 async def _sid() -> str:
     """Each attempt gets a fresh session; a used one replays spent turns."""
     return "sess-new"
+
+
+# --- bounding one investigation -------------------------------------------
+
+
+def test_the_tool_budget_is_enforced():
+    """Each tool call is an LLM turn, so an unbounded investigation is both
+    expensive and, on a 5-requests-per-minute key, unusably slow."""
+    callback = make_tool_callback(dry_run=False, telemetry=None, max_tool_calls=3)
+    results = [
+        callback(tool=FakeTool("query_prometheus"), args={}, tool_context=None)
+        for _ in range(5)
+    ]
+    assert results[:3] == [None, None, None]
+    assert all(r and r["status"] == "budget_exhausted" for r in results[3:])
+
+
+def test_the_budget_message_tells_the_model_what_to_do_next():
+    """Short-circuiting silently would leave it retrying the same call."""
+    callback = make_tool_callback(dry_run=False, telemetry=None, max_tool_calls=0)
+    reason = callback(tool=FakeTool("query_loki_logs"), args={}, tool_context=None)["reason"]
+    assert "Do not call any more tools" in reason
+    assert "not enough to name a cause" in reason
+
+
+def test_an_unbounded_budget_never_refuses():
+    callback = make_tool_callback(dry_run=False, telemetry=Telemetry(enabled=False),
+                                  max_tool_calls=None)
+    assert all(
+        callback(tool=FakeTool("query_prometheus"), args={}, tool_context=None) is None
+        for _ in range(50)
+    )
+
+
+def test_the_budget_still_gates_writes_in_a_dry_run():
+    callback = make_tool_callback(dry_run=True, telemetry=None, max_tool_calls=10)
+    blocked = callback(tool=FakeTool("create_incident"), args={}, tool_context=None)
+    assert blocked["status"] == "skipped"
+
+
+def test_refused_calls_are_not_counted_as_work_done():
+    """`mcp_tool_calls` should report calls made, not calls attempted."""
+    telemetry = Telemetry(enabled=False)
+    callback = make_tool_callback(dry_run=False, telemetry=telemetry, max_tool_calls=2)
+    for _ in range(5):
+        callback(tool=FakeTool("query_prometheus"), args={}, tool_context=None)
+    assert telemetry.metrics.mcp_tool_calls == 2
+
+
+def test_the_default_budget_is_small_enough_for_a_free_key():
+    """Five requests a minute; nine calls is roughly two minutes of work."""
+    assert 5 <= DEFAULT_TOOL_BUDGET <= 15

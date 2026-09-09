@@ -187,11 +187,21 @@ RESPONDER_SCHEMA: dict[str, Any] = {
 }
 
 
+#: Every tool call is an LLM turn, and free-tier Gemini allows five requests a
+#: minute. An unbounded investigation is therefore not just expensive, it is
+#: slow enough to be unusable. Nine calls is enough for the pattern the
+#: instruction asks for: shape of the series, panel queries, log patterns,
+#: a sample of log lines.
+DEFAULT_TOOL_BUDGET = 9
+
+
 @dataclass
 class AgentSettings:
     model: str = DEFAULT_MODEL
     investigator_model: str | None = None
     dry_run: bool = True
+    #: Tool calls one investigation may make. None removes the bound.
+    max_tool_calls: int | None = DEFAULT_TOOL_BUDGET
 
 
 def block_writes_callback(tool, args=None, tool_context=None, **kwargs):
@@ -215,19 +225,38 @@ def block_writes_callback(tool, args=None, tool_context=None, **kwargs):
     return None
 
 
-def make_tool_callback(dry_run: bool, telemetry=None):
-    """Count every agent tool call, and gate writes when dry-running.
+def make_tool_callback(dry_run: bool, telemetry=None, max_tool_calls: int | None = None):
+    """Count agent tool calls, gate writes in dry runs, and bound the budget.
 
     Counting has to happen here rather than in `mcp_client`: the agent reaches
     MCP through ADK's toolset, not through our own transport, so stages 3-6
     were invisible to `mcp_tool_calls` and the metric always reported zero.
     """
-    if not dry_run and telemetry is None:
+    if not dry_run and telemetry is None and max_tool_calls is None:
         return None
 
+    used = {"count": 0}
+
     def callback(tool, args=None, tool_context=None, **kwargs):
+        name = getattr(tool, "name", "")
+        used["count"] += 1
+
+        if max_tool_calls is not None and used["count"] > max_tool_calls:
+            # Short-circuit rather than raise: the model sees an ordinary tool
+            # response and can still write its conclusion from what it has.
+            log.info("tool budget of %d exhausted; refusing %s", max_tool_calls, name)
+            return {
+                "status": "budget_exhausted",
+                "reason": (
+                    f"This investigation has used its budget of {max_tool_calls} "
+                    "tool calls. Do not call any more tools. Write your "
+                    "conclusion from the evidence you already have, and say "
+                    "plainly if it is not enough to name a cause."
+                ),
+            }
+
         if telemetry is not None:
-            telemetry.count_tool_call(getattr(tool, "name", ""))
+            telemetry.count_tool_call(name)
         if dry_run:
             return block_writes_callback(tool=tool, args=args, tool_context=tool_context)
         return None
@@ -296,7 +325,9 @@ def build_agents(toolset, settings: AgentSettings | None = None, telemetry=None)
     from google.adk.agents import LlmAgent
 
     settings = settings or AgentSettings()
-    write_gate = make_tool_callback(settings.dry_run, telemetry)
+    write_gate = make_tool_callback(
+        settings.dry_run, telemetry, settings.max_tool_calls
+    )
 
     investigator = LlmAgent(
         name="investigator",

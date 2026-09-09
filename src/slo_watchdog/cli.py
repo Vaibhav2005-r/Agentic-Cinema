@@ -128,7 +128,11 @@ async def cmd_sweep(args: argparse.Namespace) -> int:
               + ", ".join(f"{t.name}={t.long_window}/{t.short_window}"
                           for t in detection.tiers)
               + f"; budget window={detection.slo_window}\n")
-    agent_settings = AgentSettings(model=args.model, dry_run=not args.execute)
+    agent_settings = AgentSettings(
+        model=args.model,
+        dry_run=not args.execute,
+        max_tool_calls=args.max_tool_calls,
+    )
     state = StateStore.load(Path(args.state)) if args.state else None
 
     replay, live = await _caller_for(args)
@@ -293,6 +297,9 @@ def build_parser() -> argparse.ArgumentParser:
                        help="actually write incidents and annotations (default: dry run)")
     sweep.add_argument("--model", default=DEFAULT_MODEL)
     sweep.add_argument("--max-candidates", type=int, default=5)
+    sweep.add_argument("--max-tool-calls", type=int, default=9, metavar="N",
+                       help="tool-call budget per investigation; each call is "
+                            "an LLM turn, so this bounds both cost and time")
     sweep.add_argument("--max-retries", type=int, default=3,
                        help="retries when the model is rate limited or busy")
     sweep.add_argument("--pace", type=float, default=0.0, metavar="SECONDS",
