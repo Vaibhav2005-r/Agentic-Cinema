@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 from .agent import AgentSettings, DEFAULT_MODEL
+from .burn_rate import compress
 from .detect import DetectionSettings, describe
 from .discovery import discover
 from .mcp_client import (
@@ -117,6 +118,16 @@ async def cmd_discover(args: argparse.Namespace) -> int:
 
 async def cmd_sweep(args: argparse.Namespace) -> int:
     detection = DetectionSettings(include_paging_tiers=args.include_paging)
+    if args.compress:
+        # Same thresholds and the same arithmetic on shorter windows, so a
+        # freshly started stack can produce a real finding in minutes rather
+        # than days. Burn rate is a rate; only the history needed changes.
+        detection.tiers = compress(args.compress)
+        detection.slo_window = args.slo_window
+        print(f"[compressed x{args.compress:g}] windows: "
+              + ", ".join(f"{t.name}={t.long_window}/{t.short_window}"
+                          for t in detection.tiers)
+              + f"; budget window={detection.slo_window}\n")
     agent_settings = AgentSettings(model=args.model, dry_run=not args.execute)
     state = StateStore.load(Path(args.state)) if args.state else None
 
@@ -278,6 +289,11 @@ def build_parser() -> argparse.ArgumentParser:
     sweep.add_argument("--max-candidates", type=int, default=5)
     sweep.add_argument("--include-paging", action="store_true",
                        help="also report burns that conventional alerts already catch")
+    sweep.add_argument("--compress", type=float, metavar="N", default=None,
+                       help="scale every window down by N for a live demo "
+                            "(288 turns the 3d/6h watchdog window into 15m/75s)")
+    sweep.add_argument("--slo-window", default="30d",
+                       help="SLO compliance window (use e.g. 2h with --compress)")
     sweep.add_argument("--out", metavar="FILE", help="write the JSON report here")
     sweep.add_argument("--state", metavar="FILE", default=None,
                        help="dedupe findings across runs using this state file")

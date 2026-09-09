@@ -69,7 +69,7 @@ SEGMENT = MetricProfile(
     name="segment",
     total_metric="segment_request_total",
     service_label="service_name",
-    error_selector='status_code=~"5.."',
+    error_selector='outcome=~"5.."',
     unit="segment request",
     impact="a video segment failed to deliver, causing a rebuffer",
 )
@@ -106,8 +106,20 @@ SUBTITLE = MetricProfile(
     impact="a viewer who needs captions was served none (an accessibility failure)",
 )
 
-#: Generic RED fallback, so ordinary HTTP services in the stack (catalog,
-#: search, entitlements) are still swept even without a bespoke metric.
+#: A plain HTTP request counter. OpenTelemetry appends `_total` to counters and
+#: `_count` to histograms, so these are two different metrics and a profile that
+#: expects one will silently match nothing of the other.
+HTTP_REQUESTS = MetricProfile(
+    name="http_requests",
+    total_metric="http_request_total",
+    service_label="service_name",
+    error_selector='outcome=~"5.."',
+    unit="API request",
+    impact="an API call failed",
+)
+
+#: Generic RED fallback for real OpenTelemetry stacks, where server duration is
+#: a histogram and the request count arrives as `_count`.
 OTEL_HTTP = MetricProfile(
     name="otel_http",
     total_metric="http_server_request_duration_seconds_count",
@@ -124,6 +136,7 @@ PROFILES: tuple[MetricProfile, ...] = (
     TRANSCODE,
     RENDER,
     SUBTITLE,
+    HTTP_REQUESTS,
     OTEL_HTTP,
 )
 

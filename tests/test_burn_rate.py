@@ -8,8 +8,11 @@ import pytest
 
 from slo_watchdog.burn_rate import (
     DEFAULT_SLO_WINDOW,
+    MIN_WINDOW_SECONDS,
     REQUIRED_WINDOWS,
     TIERS,
+    compress,
+    required_windows,
     RatioSample,
     budget_consumed_fraction,
     burn_rate,
@@ -352,3 +355,58 @@ def test_evaluate_and_classify_never_disagree() -> None:
         result = evaluate("svc", uniform, SLO, now=NOW)
         expected = classify(burn, burn)
         assert (result.tier if result else None) == expected, f"burn={burn}"
+
+
+# --------------------------------------------------------------------------
+# compressed windows, for demos against a freshly started stack
+# --------------------------------------------------------------------------
+
+
+def test_compression_preserves_every_threshold() -> None:
+    """Burn rate is a rate: shortening the window must not move the bar."""
+    for original, scaled in zip(TIERS, compress(288), strict=True):
+        assert scaled.threshold == original.threshold
+        assert scaled.name == original.name
+        assert scaled.severity == original.severity
+
+
+def test_compression_shortens_the_watchdog_window() -> None:
+    watchdog = compress(288)[-1]
+    assert watchdog.long_window == "15m"
+    assert watchdog.short_window == "75s"
+
+
+def test_compression_keeps_the_ratio_where_the_floor_allows() -> None:
+    watchdog = compress(288)[-1]
+    assert watchdog.long.total_seconds() / watchdog.short.total_seconds() == pytest.approx(12)
+
+
+def test_compression_never_produces_a_window_below_the_floor() -> None:
+    """A window shorter than one export interval holds no usable points."""
+    for tier in compress(10_000):
+        assert tier.short.total_seconds() >= MIN_WINDOW_SECONDS
+        assert tier.long.total_seconds() >= MIN_WINDOW_SECONDS
+
+
+def test_compression_rejects_a_nonsense_factor() -> None:
+    for bad in (0, -1):
+        with pytest.raises(ValueError):
+            compress(bad)
+
+
+def test_a_compressed_table_still_detects_the_same_burn() -> None:
+    """The whole justification for the flag."""
+    tiers = compress(288)
+    windows = required_windows(tiers, "2h")
+    samples = {
+        w: RatioSample(w, ratio_for_burn(2.3), request_count=500_000) for w in windows
+    }
+    result = evaluate("drm-license", samples, SLO, tiers=tiers,
+                      slo_window=parse_duration("2h"), now=NOW)
+    assert result is not None
+    assert result.tier.name == "watchdog"
+    assert result.burn_rate == pytest.approx(2.3)
+
+
+def test_required_windows_follows_the_tier_table() -> None:
+    assert required_windows(compress(288), "2h") == ("1m", "75s", "5m", "15m", "2h")

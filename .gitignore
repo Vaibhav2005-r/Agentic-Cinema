@@ -6,3 +6,6 @@ __pycache__/
 reports/
 state/
 *.egg-info/
+
+# runtime state: which failures are currently injected
+mediastack/scenarios.json

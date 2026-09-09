@@ -13,7 +13,16 @@ from dataclasses import dataclass
 from typing import Any, Iterable
 
 from . import tools
-from .burn_rate import REQUIRED_WINDOWS, Candidate, RatioSample, evaluate, rank
+from .burn_rate import (
+    TIERS,
+    Candidate,
+    RatioSample,
+    Tier,
+    evaluate,
+    parse_duration,
+    rank,
+    required_windows,
+)
 from .discovery import DiscoveredService, Inventory
 from .impact import describe_impact
 from .promql import error_ratio_query, request_count_query
@@ -56,6 +65,19 @@ class DetectionSettings:
     concurrency: int = DEFAULT_CONCURRENCY
     min_requests: float = 100.0
     include_paging_tiers: bool = False
+    #: Tier table to evaluate against. `burn_rate.compress()` returns a scaled
+    #: one for demos and integration tests against a freshly started stack.
+    tiers: tuple[Tier, ...] = TIERS
+    #: The SLO compliance window, sampled for budget-remaining.
+    slo_window: str = "30d"
+
+    @property
+    def windows(self) -> tuple[str, ...]:
+        return required_windows(self.tiers, self.slo_window)
+
+    @property
+    def compressed(self) -> bool:
+        return self.tiers is not TIERS
 
 
 async def _sample_window(
@@ -85,10 +107,14 @@ async def _sample_window(
 
 
 async def sample_service(
-    caller, prom_uid: str, service: DiscoveredService
+    caller,
+    prom_uid: str,
+    service: DiscoveredService,
+    windows: tuple[str, ...] = None,
 ) -> dict[str, RatioSample]:
+    windows = windows or required_windows()
     results = await asyncio.gather(
-        *(_sample_window(caller, prom_uid, service, w) for w in REQUIRED_WINDOWS)
+        *(_sample_window(caller, prom_uid, service, w) for w in windows)
     )
     return {s.window: s for s in results if s is not None}
 
@@ -108,12 +134,13 @@ async def detect(
 
     async def one(service: DiscoveredService) -> Candidate | None:
         async with semaphore:
-            samples = await sample_service(caller, prom_uid, service)
+            samples = await sample_service(caller, prom_uid, service, settings.windows)
         if not samples:
             log.debug("no samples for %s", service.name)
             return None
 
-        long_sample = samples.get("3d") or next(iter(samples.values()))
+        watchdog_window = settings.tiers[-1].long_window
+        long_sample = samples.get(watchdog_window) or next(iter(samples.values()))
         if (long_sample.request_count or 0) < settings.min_requests:
             # Too little traffic to say anything honest about.
             return None
@@ -124,6 +151,8 @@ async def detect(
             service.slo.target,
             sli=service.slo.sli,
             provisional=service.slo.provisional,
+            tiers=settings.tiers,
+            slo_window=parse_duration(settings.slo_window),
         )
 
     candidates = [c for c in await asyncio.gather(*(one(s) for s in inventory.services)) if c]

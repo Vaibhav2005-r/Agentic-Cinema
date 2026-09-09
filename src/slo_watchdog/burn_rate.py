@@ -79,13 +79,63 @@ TIERS: tuple[Tier, ...] = (
          "budget exhausted on schedule or faster; nobody is looking"),
 )
 
-#: Every distinct window the detector needs to sample, plus the SLO window
-#: itself (used for budget-remaining).
-REQUIRED_WINDOWS: tuple[str, ...] = tuple(
-    dict.fromkeys(
-        [w for tier in TIERS for w in (tier.long_window, tier.short_window)] + ["30d"]
+def required_windows(
+    tiers: tuple[Tier, ...] = TIERS, slo_window: str = "30d"
+) -> tuple[str, ...]:
+    """Every distinct window the detector must sample for this tier table."""
+    return tuple(
+        dict.fromkeys(
+            [w for tier in tiers for w in (tier.long_window, tier.short_window)]
+            + [slo_window]
+        )
     )
-)
+
+
+#: Windows for the default table, plus the SLO window (budget-remaining).
+REQUIRED_WINDOWS: tuple[str, ...] = required_windows()
+
+
+def _format_seconds(seconds: float) -> str:
+    """Render a duration Prometheus will accept, preferring whole units."""
+    seconds = max(1, round(seconds))
+    for unit, size in (("d", 86400), ("h", 3600), ("m", 60)):
+        if seconds >= size and seconds % size == 0:
+            return f"{seconds // size}{unit}"
+    return f"{seconds}s"
+
+
+#: No window shorter than this. Below roughly one scrape/export interval a
+#: window contains too few points to mean anything.
+MIN_WINDOW_SECONDS = 60
+
+
+def compress(
+    factor: float, tiers: tuple[Tier, ...] = TIERS, floor: int = MIN_WINDOW_SECONDS
+) -> tuple[Tier, ...]:
+    """Scale every window down by `factor`, for demos and integration tests.
+
+    Burn rate is a *rate*, so the thresholds and the arithmetic are unchanged --
+    only the amount of history required changes. A 2.3x burn is a 2.3x burn
+    whether it is measured over three days or thirty minutes; the shorter window
+    is simply noisier, which the confidence check already accounts for.
+
+    Windows are clamped at `floor`, so the paging tiers stop obeying the 1/12
+    ratio under heavy compression. That is acceptable: the sweep excludes those
+    tiers by default, and they are not what the watchdog is for.
+    """
+    if factor <= 0:
+        raise ValueError(f"compression factor must be positive, got {factor}")
+    return tuple(
+        Tier(
+            name=tier.name,
+            severity=tier.severity,
+            threshold=tier.threshold,
+            long_window=_format_seconds(max(floor, tier.long.total_seconds() / factor)),
+            short_window=_format_seconds(max(floor, tier.short.total_seconds() / factor)),
+            rationale=tier.rationale,
+        )
+        for tier in tiers
+    )
 
 
 @dataclass(frozen=True)
@@ -232,7 +282,7 @@ def evaluate(
         return None
 
     # Budget remaining is measured over the full SLO window, not the tier's.
-    slo_sample = samples.get("30d")
+    slo_sample = samples.get(_format_seconds(slo_window.total_seconds()))
     if slo_sample is not None:
         consumed = burn_rate(slo_sample.error_ratio, slo_target)
     else:

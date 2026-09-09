@@ -67,37 +67,76 @@ class Inventory:
         )
 
 
+#: Envelope keys mcp-grafana wraps list responses in. It is not consistent:
+#: list_datasources returns {"datasources": [...]}, other tools return a bare
+#: list or {"result": [...]}, so we check the known names and then fall back to
+#: "the dict has exactly one list in it, use that".
+_LIST_KEYS = (
+    "datasources", "dashboards", "result", "results",
+    "data", "items", "values", "metrics", "labels",
+)
+
+
 def _as_list(payload: Any) -> list[Any]:
-    """mcp-grafana returns bare lists, {"result": [...]}, or a single object."""
+    """Normalise any mcp-grafana list response into a plain list."""
     if payload is None:
         return []
     if isinstance(payload, list):
         return payload
     if isinstance(payload, dict):
-        for key in ("result", "results", "data", "items", "values"):
+        for key in _LIST_KEYS:
             inner = payload.get(key)
             if isinstance(inner, list):
                 return inner
+        lists = [v for v in payload.values() if isinstance(v, list)]
+        if len(lists) == 1:
+            return lists[0]
         return [payload]
     return [payload]
+
+
+#: Grafana Cloud provisions Loki datasources that are not application logs.
+#: Picking the first `loki` by id lands on alert-state-history, which contains
+#: no service logs at all and makes stage 4 silently useless.
+_LOKI_DEPRIORITISED = ("alert-state-history", "usage-insights", "cardinality")
+
+
+def _rank_loki(uid: str, name: str, is_default: bool) -> tuple[int, int]:
+    """Lower sorts first."""
+    haystack = f"{uid} {name}".lower()
+    if any(marker in haystack for marker in _LOKI_DEPRIORITISED):
+        return (2, 0)
+    if "logs" in haystack:
+        return (0, 0 if is_default else 1)
+    return (1, 0 if is_default else 1)
 
 
 async def find_datasources(caller) -> Datasources:
     payload = await caller.call(tools.LIST_DATASOURCES, {})
     found = Datasources()
+    prometheus: list[tuple[tuple[int, int], str]] = []
+    loki: list[tuple[tuple[int, int], str]] = []
+
     for entry in _as_list(payload):
         if not isinstance(entry, dict):
             continue
         ds_type = str(entry.get("type", "")).lower()
         uid = entry.get("uid") or entry.get("id")
-        name = entry.get("name", "")
+        name = str(entry.get("name", ""))
+        is_default = bool(entry.get("isDefault"))
         if not uid:
             continue
-        found.names[str(uid)] = str(name)
-        if ds_type == "prometheus" and found.prometheus_uid is None:
-            found.prometheus_uid = str(uid)
-        elif ds_type == "loki" and found.loki_uid is None:
-            found.loki_uid = str(uid)
+        uid = str(uid)
+        found.names[uid] = name
+        if ds_type == "prometheus":
+            prometheus.append(((0 if is_default else 1, 0), uid))
+        elif ds_type == "loki":
+            loki.append((_rank_loki(uid, name, is_default), uid))
+
+    if prometheus:
+        found.prometheus_uid = min(prometheus)[1]
+    if loki:
+        found.loki_uid = min(loki)[1]
     return found
 
 
