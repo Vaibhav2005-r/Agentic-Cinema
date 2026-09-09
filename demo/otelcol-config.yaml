@@ -1,0 +1,94 @@
+# OpenTelemetry Collector config for shipping the OTel demo to Grafana Cloud.
+#
+# The Grafana Cloud free tier allows 10,000 active series. An untrimmed
+# OpenTelemetry demo will blow through that in minutes -- it emits per-route,
+# per-status, per-container histograms across ~15 services, and each histogram
+# bucket is its own series. This config keeps the sweep's inputs and drops
+# almost everything else.
+#
+# Validate it against your collector version before relying on it:
+#   otelcol validate --config demo/otelcol-config.yaml
+#
+# Merge it over the demo's own collector config:
+#   docker compose -f docker-compose.yml -f demo/docker-compose.override.yml up
+
+receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: 0.0.0.0:4317 }
+      http: { endpoint: 0.0.0.0:4318 }
+
+processors:
+  # 1. Keep only the metric families the watchdog reads. Everything the demo
+  #    emits for its own dashboards is dropped before it costs a series.
+  filter/watchdog_metrics:
+    error_mode: ignore
+    metrics:
+      metric:
+        - 'not (name == "http.server.request.duration"
+            or name == "rpc.server.duration"
+            or name == "http.server.active_requests")'
+
+  # 2. Drop the high-cardinality attributes. `http.route` is the expensive one:
+  #    every distinct path is a new series, and product IDs in the path make it
+  #    unbounded. Status code and service are all the SLI actually needs.
+  transform/trim_labels:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - delete_key(attributes, "http.route")
+          - delete_key(attributes, "url.path")
+          - delete_key(attributes, "url.full")
+          - delete_key(attributes, "http.request.method")
+          - delete_key(attributes, "network.protocol.version")
+          - delete_key(attributes, "server.address")
+          - delete_key(attributes, "server.port")
+          - delete_key(attributes, "client.address")
+          - delete_key(attributes, "user_agent.original")
+          - delete_key(attributes, "container.id")
+          - delete_key(attributes, "process.pid")
+
+  batch:
+    timeout: 10s
+    send_batch_size: 8192
+
+  resourcedetection:
+    detectors: [env]
+    override: false
+
+exporters:
+  otlphttp/grafana_cloud:
+    endpoint: ${env:GRAFANA_OTLP_ENDPOINT}
+    auth:
+      authenticator: basicauth/grafana_cloud
+
+extensions:
+  basicauth/grafana_cloud:
+    client_auth:
+      username: ${env:GRAFANA_OTLP_USER}
+      password: ${env:GRAFANA_OTLP_TOKEN}
+
+service:
+  extensions: [basicauth/grafana_cloud]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors:
+        - filter/watchdog_metrics
+        - transform/trim_labels
+        - resourcedetection
+        - batch
+      exporters: [otlphttp/grafana_cloud]
+
+    # Logs are what the investigator correlates against, so they pass through
+    # intact -- 50 GB/month is generous next to 10k series.
+    logs:
+      receivers: [otlp]
+      processors: [resourcedetection, batch]
+      exporters: [otlphttp/grafana_cloud]
+
+    traces:
+      receivers: [otlp]
+      processors: [resourcedetection, batch]
+      exporters: [otlphttp/grafana_cloud]

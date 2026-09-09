@@ -1,0 +1,27 @@
+# Point the OpenTelemetry demo at Grafana Cloud instead of its bundled backends.
+#
+#   git clone https://github.com/open-telemetry/opentelemetry-demo.git
+#   cd opentelemetry-demo
+#   cp -r ../demo .
+#   docker compose -f docker-compose.yml -f demo/docker-compose.override.yml up -d
+#
+# Set GRAFANA_OTLP_ENDPOINT / _USER / _TOKEN from a Grafana Cloud access policy
+# token (see .env.example). The demo's own Prometheus, Jaeger and Grafana can be
+# left running or scaled to zero; they cost nothing on the Cloud bill either way.
+
+services:
+  otel-collector:
+    volumes:
+      - ./demo/otelcol-config.yaml:/etc/otelcol-config-extras.yml
+    environment:
+      - GRAFANA_OTLP_ENDPOINT=${GRAFANA_OTLP_ENDPOINT}
+      - GRAFANA_OTLP_USER=${GRAFANA_OTLP_USER}
+      - GRAFANA_OTLP_TOKEN=${GRAFANA_OTLP_TOKEN}
+
+  # The load generator drives the traffic the SLIs are computed from. The demo
+  # defaults are fine; more users means a tighter confidence interval and a
+  # faster-converging burn rate.
+  load-generator:
+    environment:
+      - LOCUST_USERS=${LOCUST_USERS:-15}
+      - LOCUST_SPAWN_RATE=${LOCUST_SPAWN_RATE:-2}

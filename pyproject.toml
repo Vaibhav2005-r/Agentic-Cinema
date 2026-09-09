@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slo-watchdog"
+version = "0.1.0"
+description = "An autonomous agent that finds the reliability problems nobody paged on."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+dependencies = [
+    "google-adk[mcp]>=2.8.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+
+# Install agento11y ALONE. `agento11y-gemini` pins google-genai<2 while
+# google-adk 2.8 requires >=2.19 -- installing the pair silently downgrades
+# google-genai until `from google.adk.agents import LlmAgent` stops importing.
+# ADK already emits OpenTelemetry spans for its own LLM calls, which is the
+# layer worth instrumenting anyway.
+#
+# The OTel pins are load-bearing too: agento11y floors them at >=1.27 with no
+# ceiling, so they float above google-adk's <=1.42.1 and break it.
+o11y = [
+    "agento11y>=0.17",
+    "opentelemetry-api==1.42.1",
+    "opentelemetry-sdk==1.42.1",
+    "opentelemetry-exporter-otlp-proto-http>=1.27",
+]
+
+[project.scripts]
+slo-watchdog = "slo_watchdog.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+asyncio_mode = "auto"
+
+[tool.ruff.lint]
+select = ["F", "E9", "B", "SIM", "RET", "ARG"]
+
+[tool.ruff.lint.per-file-ignores]
+# `args`, `tool_context` and `ctx` are required by ADK's before_tool_callback
+# and ToolPredicate signatures -- ADK calls them by keyword, so the names are
+# part of the contract even when a particular callback ignores them.
+"src/slo_watchdog/agent.py" = ["ARG001"]
+"src/slo_watchdog/mcp_client.py" = ["ARG005"]
+# Test doubles must mirror the ADK signatures they stand in for.
+"tests/*" = ["ARG002"]

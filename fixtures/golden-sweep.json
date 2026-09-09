@@ -1,0 +1,1173 @@
+{
+  "{\"args\": {}, \"tool\": \"list_datasources\"}": [
+    {
+      "uid": "grafanacloud-prom",
+      "type": "prometheus",
+      "name": "grafanacloud-metrics"
+    },
+    {
+      "uid": "grafanacloud-logs",
+      "type": "loki",
+      "name": "grafanacloud-logs"
+    },
+    {
+      "uid": "grafanacloud-traces",
+      "type": "tempo",
+      "name": "grafanacloud-traces"
+    }
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"limit\": 5000}, \"tool\": \"list_prometheus_metric_names\"}": [
+    "http_server_request_duration_seconds_count",
+    "http_server_request_duration_seconds_bucket",
+    "http_server_request_duration_seconds_sum",
+    "rpc_server_duration_milliseconds_count",
+    "target_info",
+    "up"
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"limit\": 5000, \"regex\": \"grafana_slo.*\"}, \"tool\": \"list_prometheus_metric_names\"}": [
+    "grafana_slo_objective",
+    "grafana_slo_error_budget_remaining"
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"{__name__=~\\\"grafana_slo.*objective.*\\\"}\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    {
+      "metric": {
+        "service": "frontend"
+      },
+      "value": [
+        1757000000,
+        "0.995"
+      ]
+    },
+    {
+      "metric": {
+        "service": "checkoutservice"
+      },
+      "value": [
+        1757000000,
+        "0.999"
+      ]
+    },
+    {
+      "metric": {
+        "service": "cartservice"
+      },
+      "value": [
+        1757000000,
+        "0.999"
+      ]
+    },
+    {
+      "metric": {
+        "service": "paymentservice"
+      },
+      "value": [
+        1757000000,
+        "0.999"
+      ]
+    }
+  ],
+  "{\"args\": {\"query\": \"\"}, \"tool\": \"search_dashboards\"}": [
+    {
+      "uid": "otel-demo-frontend",
+      "title": "Frontend"
+    },
+    {
+      "uid": "otel-demo-payment",
+      "title": "Payment Service"
+    },
+    {
+      "uid": "otel-demo-cart",
+      "title": "Cart Service"
+    },
+    {
+      "uid": "otel-demo-checkout",
+      "title": "Checkout Service"
+    },
+    {
+      "uid": "otel-demo-recs",
+      "title": "Recommendation Service"
+    }
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"labelName\": \"service_name\", \"matches\": [\"http_server_request_duration_seconds_count\"]}, \"tool\": \"list_prometheus_label_values\"}": [
+    "adservice",
+    "cartservice",
+    "checkoutservice",
+    "currencyservice",
+    "emailservice",
+    "frontend",
+    "paymentservice",
+    "productcatalogservice",
+    "quoteservice",
+    "recommendationservice",
+    "shippingservice"
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"labelName\": \"service_name\", \"matches\": [\"rpc_server_duration_milliseconds_count\"]}, \"tool\": \"list_prometheus_label_values\"}": [
+    "adservice",
+    "cartservice",
+    "checkoutservice",
+    "currencyservice",
+    "emailservice",
+    "frontend",
+    "paymentservice",
+    "productcatalogservice",
+    "quoteservice",
+    "recommendationservice",
+    "shippingservice"
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\", http_response_status_code=~\\\"5..\\\"}[1h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[1h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[1h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "640000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\", http_response_status_code=~\\\"5..\\\"}[5m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[5m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[5m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "640000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\", http_response_status_code=~\\\"5..\\\"}[6h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[6h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[6h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "640000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\", http_response_status_code=~\\\"5..\\\"}[30m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[30m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[30m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "640000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\", http_response_status_code=~\\\"5..\\\"}[1d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[1d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[1d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "640000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\", http_response_status_code=~\\\"5..\\\"}[2h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[2h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[2h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "640000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\", http_response_status_code=~\\\"5..\\\"}[3d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[3d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[3d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "640000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\", http_response_status_code=~\\\"5..\\\"}[30d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[30d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "3.200000000000003e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"adservice\\\"}[30d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "640000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\", http_response_status_code=~\\\"5..\\\"}[1h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[1h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.009500000000000008"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[1h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "880000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\", http_response_status_code=~\\\"5..\\\"}[5m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[5m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "5.000000000000005e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[5m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "880000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\", http_response_status_code=~\\\"5..\\\"}[6h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[6h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "6.000000000000005e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[6h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "880000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\", http_response_status_code=~\\\"5..\\\"}[30m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[30m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "5.000000000000005e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[30m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "880000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\", http_response_status_code=~\\\"5..\\\"}[1d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[1d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.009500000000000008"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[1d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "880000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\", http_response_status_code=~\\\"5..\\\"}[2h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[2h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "4.000000000000004e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[2h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "880000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\", http_response_status_code=~\\\"5..\\\"}[3d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[3d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.009500000000000008"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[3d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "880000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\", http_response_status_code=~\\\"5..\\\"}[30d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[30d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0038000000000000035"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"cartservice\\\"}[30d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "880000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\", http_response_status_code=~\\\"5..\\\"}[1h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[1h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[1h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "310000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\", http_response_status_code=~\\\"5..\\\"}[5m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[5m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[5m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "310000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\", http_response_status_code=~\\\"5..\\\"}[6h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[6h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[6h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "310000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\", http_response_status_code=~\\\"5..\\\"}[30m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[30m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[30m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "310000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\", http_response_status_code=~\\\"5..\\\"}[1d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[1d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[1d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "310000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\", http_response_status_code=~\\\"5..\\\"}[2h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[2h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[2h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "310000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\", http_response_status_code=~\\\"5..\\\"}[3d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[3d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[3d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "310000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\", http_response_status_code=~\\\"5..\\\"}[30d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[30d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "3.200000000000003e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"checkoutservice\\\"}[30d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "310000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\", http_response_status_code=~\\\"5..\\\"}[1h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[1h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[1h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1100000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\", http_response_status_code=~\\\"5..\\\"}[5m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[5m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[5m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1100000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\", http_response_status_code=~\\\"5..\\\"}[6h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[6h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[6h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1100000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\", http_response_status_code=~\\\"5..\\\"}[30m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[30m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[30m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1100000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\", http_response_status_code=~\\\"5..\\\"}[1d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[1d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[1d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1100000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\", http_response_status_code=~\\\"5..\\\"}[2h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[2h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[2h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1100000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\", http_response_status_code=~\\\"5..\\\"}[3d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[3d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[3d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1100000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\", http_response_status_code=~\\\"5..\\\"}[30d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[30d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "3.200000000000003e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"currencyservice\\\"}[30d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1100000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\", http_response_status_code=~\\\"5..\\\"}[1h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[1h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[1h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "96000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\", http_response_status_code=~\\\"5..\\\"}[5m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[5m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[5m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "96000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\", http_response_status_code=~\\\"5..\\\"}[6h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[6h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[6h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "96000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\", http_response_status_code=~\\\"5..\\\"}[30m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[30m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[30m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "96000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\", http_response_status_code=~\\\"5..\\\"}[1d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[1d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[1d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "96000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\", http_response_status_code=~\\\"5..\\\"}[2h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[2h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[2h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "96000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\", http_response_status_code=~\\\"5..\\\"}[3d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[3d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[3d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "96000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\", http_response_status_code=~\\\"5..\\\"}[30d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[30d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "3.200000000000003e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"emailservice\\\"}[30d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "96000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\", http_response_status_code=~\\\"5..\\\"}[1h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[1h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[1h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "2400000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\", http_response_status_code=~\\\"5..\\\"}[5m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[5m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[5m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "2400000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\", http_response_status_code=~\\\"5..\\\"}[6h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[6h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[6h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "2400000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\", http_response_status_code=~\\\"5..\\\"}[30m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[30m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[30m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "2400000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\", http_response_status_code=~\\\"5..\\\"}[1d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[1d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[1d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "2400000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\", http_response_status_code=~\\\"5..\\\"}[2h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[2h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[2h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "2400000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\", http_response_status_code=~\\\"5..\\\"}[3d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[3d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[3d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "2400000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\", http_response_status_code=~\\\"5..\\\"}[30d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[30d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "3.200000000000003e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"frontend\\\"}[30d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "2400000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\", http_response_status_code=~\\\"5..\\\"}[1h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[1h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0023000000000000017"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[1h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "305000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\", http_response_status_code=~\\\"5..\\\"}[5m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[5m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0023000000000000017"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[5m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "305000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\", http_response_status_code=~\\\"5..\\\"}[6h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[6h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0023000000000000017"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[6h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "305000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\", http_response_status_code=~\\\"5..\\\"}[30m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[30m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0023000000000000017"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[30m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "305000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\", http_response_status_code=~\\\"5..\\\"}[1d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[1d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0023000000000000017"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[1d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "305000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\", http_response_status_code=~\\\"5..\\\"}[2h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[2h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0023000000000000017"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[2h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "305000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\", http_response_status_code=~\\\"5..\\\"}[3d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[3d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0023000000000000017"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[3d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "305000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\", http_response_status_code=~\\\"5..\\\"}[30d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[30d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0006600000000000006"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"paymentservice\\\"}[30d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "305000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\", http_response_status_code=~\\\"5..\\\"}[1h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[1h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[1h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1900000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\", http_response_status_code=~\\\"5..\\\"}[5m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[5m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[5m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1900000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\", http_response_status_code=~\\\"5..\\\"}[6h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[6h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[6h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1900000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\", http_response_status_code=~\\\"5..\\\"}[30m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[30m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[30m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1900000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\", http_response_status_code=~\\\"5..\\\"}[1d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[1d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[1d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1900000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\", http_response_status_code=~\\\"5..\\\"}[2h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[2h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[2h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1900000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\", http_response_status_code=~\\\"5..\\\"}[3d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[3d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[3d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1900000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\", http_response_status_code=~\\\"5..\\\"}[30d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[30d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "3.200000000000003e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"productcatalogservice\\\"}[30d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "1900000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\", http_response_status_code=~\\\"5..\\\"}[1h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[1h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[1h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "180000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\", http_response_status_code=~\\\"5..\\\"}[5m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[5m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[5m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "180000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\", http_response_status_code=~\\\"5..\\\"}[6h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[6h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[6h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "180000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\", http_response_status_code=~\\\"5..\\\"}[30m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[30m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[30m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "180000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\", http_response_status_code=~\\\"5..\\\"}[1d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[1d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[1d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "180000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\", http_response_status_code=~\\\"5..\\\"}[2h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[2h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[2h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "180000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\", http_response_status_code=~\\\"5..\\\"}[3d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[3d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[3d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "180000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\", http_response_status_code=~\\\"5..\\\"}[30d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[30d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "3.200000000000003e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"quoteservice\\\"}[30d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "180000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\", http_response_status_code=~\\\"5..\\\"}[1h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[1h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0018000000000000017"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[1h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "720000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\", http_response_status_code=~\\\"5..\\\"}[5m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[5m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0018000000000000017"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[5m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "720000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\", http_response_status_code=~\\\"5..\\\"}[6h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[6h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0018000000000000017"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[6h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "720000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\", http_response_status_code=~\\\"5..\\\"}[30m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[30m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0018000000000000017"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[30m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "720000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\", http_response_status_code=~\\\"5..\\\"}[1d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[1d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0018000000000000017"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[1d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "720000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\", http_response_status_code=~\\\"5..\\\"}[2h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[2h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0018000000000000017"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[2h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "720000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\", http_response_status_code=~\\\"5..\\\"}[3d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[3d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0018000000000000017"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[3d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "720000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\", http_response_status_code=~\\\"5..\\\"}[30d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[30d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "0.0004100000000000003"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"recommendationservice\\\"}[30d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "720000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\", http_response_status_code=~\\\"5..\\\"}[1h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[1h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[1h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "290000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\", http_response_status_code=~\\\"5..\\\"}[5m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[5m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[5m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "290000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\", http_response_status_code=~\\\"5..\\\"}[6h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[6h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[6h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "290000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\", http_response_status_code=~\\\"5..\\\"}[30m])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[30m])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[30m]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "290000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\", http_response_status_code=~\\\"5..\\\"}[1d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[1d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[1d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "290000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\", http_response_status_code=~\\\"5..\\\"}[2h])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[2h])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[2h]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "290000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\", http_response_status_code=~\\\"5..\\\"}[3d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[3d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "8.000000000000007e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[3d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "290000"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"(sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\", http_response_status_code=~\\\"5..\\\"}[30d])) or vector(0)) / (sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[30d])) > 0)\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "3.200000000000003e-05"
+    ]
+  ],
+  "{\"args\": {\"datasourceUid\": \"grafanacloud-prom\", \"expr\": \"sum(increase(http_server_request_duration_seconds_count{service_name=\\\"shippingservice\\\"}[30d]))\", \"queryType\": \"instant\"}, \"tool\": \"query_prometheus\"}": [
+    [
+      1757000000,
+      "290000"
+    ]
+  ]
+}
