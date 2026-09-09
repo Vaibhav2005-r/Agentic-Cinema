@@ -168,7 +168,7 @@ So every ratio, threshold, window and impact figure is computed in Python from
 raw PromQL. The agent receives a structured candidate and reasons about
 **meaning, not numbers**.
 
-- **It is testable.** 237 tests, 13 of them against the real MCP server binary.
+- **It is testable.** 247 tests, 13 of them against the real MCP server binary.
 - **It is cheap.** Passing a computed candidate instead of raw time series cuts
   token cost by roughly an order of magnitude — a full sweep costs about **nine cents**.
 - **It cannot lie about the numbers.** `_apply_agent_result` merges only
@@ -317,6 +317,18 @@ name strings; Loki's expression parameter is `logql`, not `expr`; and
 `list_prometheus_metric_names` defaults to a limit of **10**, which silently
 truncates discovery.
 
+**1a. `gemini-2.5-*` is gone for new API keys, but `models.list()` still
+returns it.** It 404s on use with a pointer to `gemini-3.x`. Verify a model by
+calling it, not by listing it. On a free key the pro tiers return 429
+immediately; `gemini-3.8-flash` and `gemini-3.5-flash` both work.
+
+**1b. Free-tier Gemini allows 5 requests per minute per model.** One agentic
+investigation spends a request per tool-use turn, so the first candidate ends
+the sweep. `investigate_with_retry` backs off on 429/503 using the `retryDelay`
+the API returns rather than a guessed interval, and takes a fresh session per
+attempt so a retry does not replay turns that already spent quota. Use
+`--pace 60` and `--max-retries 4` on a free key.
+
 **2. `google-adk` and `agento11y-gemini` cannot coexist.** The former requires
 `google-genai>=2.19`, the latter pins `<2`. Installing the pair silently
 downgrades genai until `LlmAgent` stops importing. Pin
@@ -383,7 +395,7 @@ src/slo_watchdog/
   cli.py           doctor · discover · sweep · chaos · state
 mediastack/        the synthetic streaming platform (no Docker)
 fixtures/          the recorded golden run
-tests/             237 tests (13 against a real mcp-grafana)
+tests/             247 tests (13 against a real mcp-grafana)
 ```
 
 ## Licence
